@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.0.3-blue)
+![Version](https://img.shields.io/badge/version-1.0.4-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.0.3 — 5 core formulas)
+### Formula engine (v1.0.4 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -194,7 +194,30 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.0.3 (2026-11-26)
+### Latest — v1.0.4 (2026-11-26)
+
+- **Fixed**: clicking "Write to active cell" froze the entire app
+  - **Root cause**: every Excel COM call (`get_active_cell`, `set_formula`,
+    `get_cell_error`, …) was being executed synchronously on the **PySide6 GUI
+    thread**.  COM proxy calls wait on Excel's main thread; if Excel was busy
+    (background recalculation, an open `DisplayAlerts` dialog, a VBA macro
+    still running, or just sluggish formula calculation), the call blocked the
+    GUI event loop and the window looked dead.
+  - **Fix**: rewrote `excel_bridge.py` as `ExcelBridgeThread(QThread)`:
+    1. All `win32com` COM proxies are now created and **only ever touched
+       inside a dedicated QThread**.  `pythoncom.CoInitialize()` lives there
+       too.  GUI threads can't touch COM — period.
+    2. GUI requests go through `QMetaObject.invokeMethod(..., QueuedConnection)`
+       to the worker thread's slots.  Answers come back via Qt `Signal`s.
+    3. `ScreenUpdating=False`, `EnableEvents=False`, `DisplayAlerts=False`
+       wrap every Excel write so background Excel work can't block the call.
+  - **GUI changes**: `_write_to_excel`, `_show_preview` and Wizard's "pick
+    cell from Excel" are all async signal chains now.  No more `bridge.xxx()`
+    returning a dict that the GUI uses synchronously — every call that touches
+    Excel goes through `request_xxx()` + a matching slot.
+  - **Verified**: 14/14 tests green, 0 ruff warnings, module import OK.
+
+### v1.0.3 (2026-11-26)
 
 - Eliminated the CMD **black console window** when launching `run.bat`
   - **Root cause**: double-clicking any `.bat` necessarily spawns a CMD console; using `pythonw.exe` inside the bat only hides Python's console, not CMD's.

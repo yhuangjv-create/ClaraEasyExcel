@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![版本](https://img.shields.io/badge/version-1.0.3-blue)
+![版本](https://img.shields.io/badge/version-1.0.4-blue)
 [![许可证: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![平台](https://img.shields.io/badge/platform-windows-blue)
@@ -58,7 +58,7 @@ Excel 新手快速编写常用内部公式和（规划中）VBA 宏：
 
 ## 功能特性
 
-### 公式引擎（v1.0.3 — 5 个核心公式）
+### 公式引擎（v1.0.4 — 5 个核心公式）
 
 每个公式都自带完整的 **引导 → 生成 → 诊断** 流水线：
 
@@ -190,7 +190,18 @@ MIT — 详见 [LICENSE](./LICENSE)
 <a id="版本更迭"></a>
 ## 版本更迭
 
-### 最新 — v1.0.3（2026-11-26）
+### 最新 — v1.0.4（2026-11-26）
+
+- **修复**：点击"写入活动单元格"后整个程序卡死
+  - **根因**：所有 Excel COM 调用（读活动单元格、写公式、读单元格错误、……）都在 **PySide6 GUI 主线程**上同步执行。COM 代理调用内部需要等待 Excel 主线程响应 —— 一旦 Excel 正在做后台重算、弹出 `DisplayAlerts` 对话框、或者 VBA 宏还没跑完，COM 调用就会阻塞 GUI 事件循环，整个窗口看起来像"死"了。
+  - **修复**：彻底重写 `excel_bridge.py` 为 `ExcelBridgeThread(QThread)`：
+    1. 所有 `win32com` COM 代理都在独立 QThread 里创建，并且**只在这个线程里使用**。`pythoncom.CoInitialize()` 也只在这个线程里初始化。GUI 线程不碰 COM —— 一条都不碰。
+    2. GUI 发起 Excel 请求时通过 `QMetaObject.invokeMethod(..., QueuedConnection)` 投递到 worker 线程的 slot；结果通过 Qt `Signal` 回传。
+    3. 每次 Excel 写入前自动关闭 `ScreenUpdating=False`、`EnableEvents=False`、`DisplayAlerts=False`，防止 Excel 后台工作阻塞调用。
+  - **GUI 同步改造**：`_write_to_excel`、`_show_preview`、Wizard 的"从 Excel 选单元格"全部改成异步 signal 链路。没有任何 `bridge.xxx()` 返回 dict 后 GUI 立即同步使用的情况 —— 所有碰 Excel 的调用都走 `request_xxx()` + 对应的 slot。
+  - **验证通过**：14/14 单元测试、0 ruff 警告、模块 import OK。
+
+### v1.0.3（2026-11-26）
 
 - 彻底消除双击 `run.bat` 时出现的 CMD **黑色控制台窗口**
   - **根因**：双击任何 `.bat` 文件，Windows 必然先拉起一个 CMD 控制台；bat 里用 `pythonw.exe` 只能隐藏 Python 自己的黑窗，CMD 的黑框还是会出现。

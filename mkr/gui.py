@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
 
 from mkr import __version__
 from mkr.config import Config
-from mkr.excel_bridge import ExcelComBridge
+from mkr.excel_bridge import ExcelBridgeThread
 from mkr.formulas import base as fbase  # noqa: F401 — triggers registry
 from mkr.formulas.base import FormulaBase, all_formula_names, get_formula
 from mkr.i18n import tr
@@ -421,33 +421,27 @@ class WizardScreen(QWidget):
         self.next_ready.emit()
 
     def _pick_from_excel(self, mode: str) -> None:
-        bridge = ExcelComBridge()
-        if not bridge.is_connected():
+        """Request a cell/range pick from Excel — routes through the window's
+        shared bridge so COM calls stay on the dedicated QThread."""
+        window = self.window()
+        bridge = getattr(window, "bridge", None)
+        if bridge is None or not bridge.is_connected():
             cfg = Config.get()
-            QMessageBox.information(
-                self,
-                tr("diag_title", lang=cfg.lang),
-                tr("diag_conn_fail", lang=cfg.lang),
-            )
+            QMessageBox.warning(self, tr("diag_title", lang=cfg.lang), tr("diag_conn_fail", lang=cfg.lang))
             return
         cfg = Config.get()
-        # prompt user — switch to Excel, select cell/range, come back and hit OK
         QMessageBox.information(
             self,
             tr("pick_mode_active", lang=cfg.lang),
-            tr("pick_mode_active", lang=cfg.lang) +
-            ("\n(单格 / Single cell)" if mode == "cell" else "\n(区域 / Range)"),
+            tr("pick_mode_active", lang=cfg.lang)
+            + ("\n(单格 / Single cell)" if mode == "cell" else "\n(区域 / Range)"),
         )
-        # user picks in Excel while we wait
-        bridge2 = ExcelComBridge()
+        # Hand off to async flow — set pending flag on window then post request
+        window._pending_pick_mode = mode  # type: ignore[attr-defined]
         if mode == "range":
-            result = bridge2.get_active_range_address()
+            bridge.request_active_range()
         else:
-            result = bridge2.get_active_cell_address()
-        if result.get("ok"):
-            self.input_line.setText(str(result["data"]))
-        else:
-            QMessageBox.warning(self, "Error", result.get("error", "Unknown"))
+            bridge.request_active_cell()
 
     def refresh_texts(self) -> None:
         self._refresh_static_texts()
@@ -600,16 +594,83 @@ class PreviewScreen(QWidget):
 # Main window — borderless, draggable, always on top, with custom title bar
 # ==========================================================================
 class SidecarWindow(QWidget):
-    def __init__(self, bridge: ExcelComBridge) -> None:
+    def __init__(self, bridge: ExcelBridgeThread) -> None:
         super().__init__()
         self.bridge = bridge
         self._drag_pos = None
+        # Async-state trackers for multi-step async workflows
+        self._pending_pick_mode: str | None = None  # None / "cell" / "range" → Wizard picking
+        self._pending_write_body: str | None = None  # formula body to write
+        self._pending_write_formula: FormulaBase | None = None
+        self._pending_preview_addr: str | None = None
+        self._pending_preview_formula: FormulaBase | None = None
+        self._pending_preview_body: str | None = None
         self._build_window()
         self._build_screens()
         self._connect_signals()
         self._refresh_static_texts()
         self._apply_geometry()
         self._refresh_status()
+
+    # ---------- bridge signal handlers (run on GUI thread, data arrived from worker) ----------
+    def _on_excel_connected(self, result: dict) -> None:
+        """Result of request_connect."""
+        cfg = Config.get()
+        if result.get("ok"):
+            self.status.setText(tr("diag_conn_ok", lang=cfg.lang))
+        else:
+            self.status.setText(tr("diag_conn_fail", lang=cfg.lang))
+
+    def _on_active_cell_address(self, address: str) -> None:
+        """Active-cell read completed — route to the pending workflow."""
+        # Path A: Wizard is picking a cell
+        if self._pending_pick_mode is not None:
+            self.wizard.input_line.setText(address)
+            self._pending_pick_mode = None
+            return
+        # Path B: Preview "write" workflow — step 1 done, now write formula
+        if self._pending_write_body is not None and address:
+            self.bridge.request_set_formula(address, self._pending_write_body)
+            return
+        # Path C: Preview "preview" workflow — just need this cell's formula error
+        if self._pending_preview_body is not None and address:
+            self._pending_preview_addr = address
+            self.bridge.request_cell_error(address)
+
+    def _on_active_range_address(self, address: str) -> None:
+        if self._pending_pick_mode is not None:
+            self.wizard.input_line.setText(address)
+            self._pending_pick_mode = None
+
+    def _on_formula_written(self, result: dict) -> None:
+        cfg = Config.get()
+        lang = cfg.lang
+        addr = str(result.get("addr", ""))
+        if result.get("ok"):
+            self.status.setText(f"✓ {tr('written', lang=lang)} — {addr}")
+            # step 2 of write: read error on that address
+            self._pending_preview_addr = addr
+            self._pending_preview_formula = self._pending_write_formula
+            self._pending_preview_body = self._pending_write_body
+            self._pending_write_body = None
+            self._pending_write_formula = None
+            self.bridge.request_cell_error(addr)
+        else:
+            self._pending_write_body = None
+            self._pending_write_formula = None
+            QMessageBox.critical(self, "Error", str(result.get("error", "Unknown")))
+
+    def _on_cell_error_value(self, error: str | None) -> None:
+        """Read cell error (during preview refresh or after write)."""
+        formula = self._pending_preview_formula
+        body = self._pending_preview_body or ""
+        self._pending_preview_addr = None
+        self._pending_preview_formula = None
+        self._pending_preview_body = None
+        if formula is None:
+            return
+        suggestions = formula.diagnose(body, error)
+        self.preview.set_diagnostics(error, suggestions)
 
     # ---------- window chrome ----------
     def _build_window(self) -> None:
@@ -727,10 +788,10 @@ class SidecarWindow(QWidget):
         body = self.wizard.formula.build(**self.wizard.values) if self.wizard.formula else ""
         Config.get().add_recent(name)
         self.preview.set_formula(name, body)
-        # read current cell — if Excel gives an error, show it
-        err = self.bridge.get_cell_error(self.bridge.get_active_cell_address().get("data", "A1") or "A1")
-        suggestions = self.wizard.formula.diagnose(body, err) if self.wizard.formula else []
-        self.preview.set_diagnostics(err, suggestions)
+        # Trigger async refresh of the current cell's error status
+        self._pending_preview_formula = self.wizard.formula
+        self._pending_preview_body = body
+        self.bridge.request_active_cell()
         self.stack.setCurrentWidget(self.preview)
 
     def _go_home(self) -> None:
@@ -740,26 +801,15 @@ class SidecarWindow(QWidget):
 
     # ---------- excel write ----------
     def _write_to_excel(self) -> None:
+        """Async write — sends an active-cell request first, the signal chain
+        takes care of set_formula and cell_error check."""
         cfg = Config.get()
-        lang = cfg.lang
-        body = self.preview.generated
-        r = self.bridge.get_active_cell_address()
-        if not r.get("ok"):
-            QMessageBox.warning(self, "Error", tr("diag_conn_fail", lang=lang))
+        if not self.bridge.is_connected():
+            QMessageBox.warning(self, "Error", tr("diag_conn_fail", lang=cfg.lang))
             return
-        addr = r["data"]
-        result = self.bridge.set_formula(addr, body)
-        if result.get("ok"):
-            self.status.setText(f"✓ {tr('written', lang=lang)} — {addr}")
-            # re-check for errors
-            err = self.bridge.get_cell_error(addr)
-            if err:
-                suggestions = self.preview.formula.diagnose(body, err) if self.preview.formula else []
-                self.preview.set_diagnostics(err, suggestions)
-            else:
-                self.preview.set_diagnostics(None, [])
-        else:
-            QMessageBox.critical(self, "Error", str(result.get("error", "Unknown")))
+        self._pending_write_body = self.preview.generated
+        self._pending_write_formula = self.preview.formula
+        self.bridge.request_active_cell()
 
     def _copy_formula(self) -> None:
         cfg = Config.get()
@@ -806,11 +856,16 @@ def launch() -> int:
     app.setQuitOnLastWindowClosed(True)
     app.setStyle("Fusion")
 
-    bridge = ExcelComBridge()
+    bridge = ExcelBridgeThread()
+    window = SidecarWindow(bridge)
+    bridge.connected.connect(window._on_excel_connected)
+    bridge.active_cell.connect(window._on_active_cell_address)
+    bridge.active_range.connect(window._on_active_range_address)
+    bridge.formula_written.connect(window._on_formula_written)
+    bridge.cell_error.connect(window._on_cell_error_value)
+    window.show()
     cfg = Config.get()
     if cfg.auto_connect:
-        bridge.connect()
-
-    window = SidecarWindow(bridge)
-    window.show()
+        bridge.request_connect()
+    app.aboutToQuit.connect(bridge.shutdown)
     return app.exec()
