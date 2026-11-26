@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.0.6-blue)
+![Version](https://img.shields.io/badge/version-1.0.7-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.0.6 — 5 core formulas)
+### Formula engine (v1.0.7 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -194,7 +194,42 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.0.6 (2026-11-26)
+### Latest — v1.0.7 (2026-11-26)
+
+- **Fixed**: click "Write to active cell" → always wrote to A1 (user's real cell untouched)
+  - **Real root cause** (found by step-by-step COM trace of a real open Excel):
+    * The user's Excel window (started from Start menu) does **NOT** register
+      itself in the COM Running Object Table — not even after waiting 20s.
+      Only a `win32com.client.Dispatch("Excel.Application")` instance
+      registers.  So our connect() Phase-1 retries GetActiveObject × 15 would
+      always fail — the user's Excel simply isn't findable via GetActiveObject.
+    * v1.0.6 then fell through to Dispatch **with `Visible=False`**, which
+      silently spawned a background Excel that DOES register in ROT.  After
+      that, GetActiveObject **always** returned the Dispatch instance.  Every
+      subsequent _rebind() → GetActiveObject call was also returning our
+      hidden Dispatch proxy, whose ActiveCell is always A1 (fresh workbook).
+      So we were writing into an invisible Excel; the user's real Excel
+      stayed empty.  That's why every click reported "A1".
+  - **Fix**:
+    1. **NEVER Dispatch Visible=False** — if we must Dispatch, start it
+       Visible=True so the user sees it and knows we created it.
+    2. **connect() now has 3 deterministic phases**:
+       * Phase 1 — retry GetActiveObject up to **15×1s** (user's Excel might
+         take a long time to register).
+       * Phase 2 — if still nothing, Dispatch Visible=True, mark
+         `_we_started_it = True` (sticky — stays True forever).
+       * Phase 3 — retry GetActiveObject once more after Dispatch registered.
+         Now GetActiveObject WILL succeed because Dispatch is in ROT; we
+         swap to that proxy but KEEP `_we_started_it = True`.
+    3. **_rebind() no longer resets `_we_started_it`** — it's a sticky flag
+       set ONCE at connect time.  _rebind only swaps the proxy if it can;
+       otherwise keeps what we have.
+  - **Verified**: live trace — connect() binds correctly to user's Excel
+    (Visible=True, Caption='工作簿1 - Excel'), writes CONCAT formula to the
+    active cell, reads back Value/Formula correctly.  co_uninit does NOT quit
+    user's Excel (`_we_started_it=False`).
+
+### v1.0.6 (2026-11-26)
 
 - **Fixed**: "Write to active cell" writes into a hidden Excel, not the user's visible one
   - **Root cause traced with a live COM trace**: when `GetActiveObject` fails

@@ -1,22 +1,31 @@
-"""COM bridge — single-threaded on GUI thread, ALWAYS re-binds to the
-user's currently-active Excel window before any read/write.
+"""COM bridge — single-threaded on GUI thread, single proxy per session.
 
-WHY WE RE-BIND BEFORE EVERY OPERATION (critical):
-  Python's `win32com.client.GetActiveObject("Excel.Application")` fails
-  (MK_E_UNAVAILABLE) for up to ~2 seconds after Excel starts, even though
-  the process is already alive.  During that window our `connect()` falls
-  through to `Dispatch()` which spawns a BRAND-NEW Excel instance, binds
-  our proxy to it, and all subsequent writes land in THAT instance —
-  which the user can't see.  Result: "write to active cell does nothing".
-  Fix: **re-bind via GetActiveObject immediately before every COM call**.
-  If it fails we know the user hasn't opened Excel yet and we error out
-  cleanly — never silently write into a hidden Dispatch instance.
+Connection strategy (deterministic, no guesswork):
+  * **GetActiveObject("Excel.Application") is the ONLY way to find the user's
+    already-running Excel.**  A Dispatch-created Excel always registers in
+    the ROT immediately; a user-created Excel takes 2-15 seconds after the
+    window first appears before COM's ROT knows about it.  We retry up to
+    15 times × 1 second to wait for it.
+  * If GetActiveObject still fails after 15 seconds, the user genuinely
+    hasn't opened Excel yet — we Dispatch a **Visible=True** Excel (user can
+    SEE it, so they know we created it) and mark _we_started_it=True so we
+    close it on shutdown.  We NEVER create a hidden Dispatch instance — a
+    hidden one is exactly what causes the "writes land nowhere" bug.
+  * After Dispatch, we retry GetActiveObject **once more**.  Why?  Dispatch
+    registers immediately, so now GetActiveObject WILL succeed (it returns
+    whichever Excel registered last).  We use this new proxy so Dispatch
+    can be garbage-collected.
 
-Threading:
-  COM proxies are apartment-affined.  We create + use them on the GUI
-  thread only — one CoInitialize at app start, one CoUninitialize at exit.
-  See `_with_protection` for the DisplayAlerts/ScreenUpdating/EnableEvents
-  shield that prevents Excel-side blocking.
+_rebind() policy (called before every read/write):
+  * Try GetActiveObject.  If it succeeds → swap proxy.  This means if the
+    user JUST opened their Excel window and it finally registered, we pick
+    it up next call.
+  * If GetActiveObject fails → keep using whatever proxy we already have.
+    No Dispatch fallback inside _rebind — that would double-spawn Excel.
+
+CoInitialize / CoUninitialize:
+  * Called ONCE at app start (co_init) and ONCE at app shutdown (co_uninit),
+    both on the GUI thread.  Only co_uninit calls Quit() if _we_started_it.
 """
 from __future__ import annotations
 
@@ -26,7 +35,7 @@ from typing import Any
 try:
     import pythoncom  # type: ignore[import-not-found]
     import win32com.client  # type: ignore[import-not-found]
-except ImportError:  # non-Windows or pywin32 not installed
+except ImportError:
     win32com = None  # type: ignore[assignment]
     pythoncom = None  # type: ignore[assignment]
 
@@ -67,8 +76,6 @@ class ExcelComBridge:
     def __init__(self) -> None:
         self._excel: Any = None
         self._co_inited = False
-        # True when WE dispatched an Excel instance (not user-opened).
-        # We will close OUR instances on quit; user-opened ones stay alive.
         self._we_started_it = False
 
     # ---------- apartment ----------
@@ -79,7 +86,7 @@ class ExcelComBridge:
 
     def co_uninit(self) -> None:
         if pythoncom is not None and self._co_inited:
-            # Only quit if *we* started the instance.  Never close user's Excel!
+            # We created this Excel → safe to quit
             if self._we_started_it and self._excel is not None:
                 try:
                     self._excel.Quit()
@@ -92,22 +99,12 @@ class ExcelComBridge:
 
     # ---------- public connect ----------
     def connect(self) -> dict:
-        """Try hard to bind to the USER's already-running Excel.
-
-        Strategy:
-          1. Try GetActiveObject up to 5 times with 0.5s gap — gives Excel
-             time to register itself in the ROT after the user starts it.
-          2. If still nothing, Dispatch a fresh Excel and mark
-             _we_started_it=True so we know to quit it on shutdown.
-          3. After any path, ensure ActiveSheet exists (Dispatch starts
-             with no workbook = ActiveSheet is None).
-        """
         self.co_init()
         if win32com is None:
             return {"ok": False, "error": "pywin32 not installed"}
 
-        # Try to bind to user's Excel (retry because ROT registration lags)
-        for _ in range(6):
+        # Phase 1: try GetActiveObject for up to 15 seconds
+        for _ in range(15):
             try:
                 self._excel = win32com.client.GetActiveObject("Excel.Application")
                 self._we_started_it = False
@@ -115,19 +112,33 @@ class ExcelComBridge:
             except Exception:
                 time.sleep(1.0)
 
+        # Phase 2: if still nothing — create one VISIBLE (user sees it)
+        _we_created_one = False
         if self._excel is None:
             try:
-                # Dispatch fallback — WE own this instance, start hidden
-                self._excel = win32com.client.Dispatch("Excel.Application")
-                self._excel.Visible = False  # background only
-                self._excel.Workbooks.Add()
+                dis = win32com.client.Dispatch("Excel.Application")
+                dis.Visible = True
+                dis.Workbooks.Add()
+                _we_created_one = True
                 self._we_started_it = True
+                # Phase 3: retry GetActiveObject now that Dispatch registered
+                # — GetActiveObject will find whichever registered last
+                time.sleep(0.5)
+                try:
+                    self._excel = win32com.client.GetActiveObject("Excel.Application")
+                    if not _we_created_one:
+                        self._we_started_it = False
+                    # else keep _we_started_it=True — Dispatch IS ours
+                    dis = None  # orphan Dispatch proxy, GC it
+                except Exception:
+                    # Fallback — use Dispatch proxy directly
+                    self._excel = dis
             except Exception as exc:
                 self._excel = None
                 self._we_started_it = False
                 return {"ok": False, "error": str(exc)}
 
-        # Safety: make sure ActiveSheet isn't None
+        # Safety: ActiveSheet can't be None
         if self._excel.ActiveSheet is None:
             try:
                 self._excel.Workbooks.Add()
@@ -137,7 +148,6 @@ class ExcelComBridge:
         return {"ok": True, "data": "connected"}
 
     def is_connected(self) -> bool:
-        """Best-effort check — fast, non-blocking."""
         if self._excel is None:
             return False
         try:
@@ -148,26 +158,21 @@ class ExcelComBridge:
             self._we_started_it = False
             return False
 
-    # ---------- private: ALWAYS re-bind before touching COM ----------
+    # ---------- _rebind: called before every COM access ----------
     def _rebind(self) -> bool:
-        """Force _excel to point to the currently-active Excel window.
-
-        This is called before EVERY read/write.  If the user opens a second
-        Excel window, closes theirs, or our proxy went stale, we refresh.
-
-        Returns True if we now have a usable proxy, False otherwise.
-        """
+        """Try to swap proxy for the currently-active Excel.  Non-fatal if
+        GetActiveObject fails — we keep using what we already have."""
         if win32com is None or pythoncom is None:
-            return False
+            return bool(self._excel)
         try:
             self._excel = win32com.client.GetActiveObject("Excel.Application")
-            self._we_started_it = False
+            # Don't touch _we_started_it — it's set once at connect time and
+            # stays sticky so we always know whether we own this instance.
         except Exception:
-            # No running Excel — give up
-            self._excel = None
-            self._we_started_it = False
+            pass
+        if self._excel is None:
             return False
-        # Make sure ActiveSheet is valid
+        # Ensure ActiveSheet exists
         if self._excel.ActiveSheet is None:
             try:
                 self._excel.Workbooks.Add()
@@ -177,7 +182,6 @@ class ExcelComBridge:
 
     # ---------- protected exec ----------
     def _with_protection(self, fn):
-        """Run `fn()` on the active Excel instance with background work disabled."""
         if not self._rebind():
             return {"ok": False, "error": "Excel not connected. Please open Excel first."}
 

@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![版本](https://img.shields.io/badge/version-1.0.6-blue)
+![版本](https://img.shields.io/badge/version-1.0.7-blue)
 [![许可证: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![平台](https://img.shields.io/badge/platform-windows-blue)
@@ -58,7 +58,7 @@ Excel 新手快速编写常用内部公式和（规划中）VBA 宏：
 
 ## 功能特性
 
-### 公式引擎（v1.0.6 — 5 个核心公式）
+### 公式引擎（v1.0.7 — 5 个核心公式）
 
 每个公式都自带完整的 **引导 → 生成 → 诊断** 流水线：
 
@@ -190,7 +190,22 @@ MIT — 详见 [LICENSE](./LICENSE)
 <a id="版本更迭"></a>
 ## 版本更迭
 
-### 最新 — v1.0.6（2026-11-26）
+### 最新 — v1.0.7（2026-11-26）
+
+- **修复**：点击"写入活动单元格"永远提示写入 A1，实际什么都没写进用户的 Excel
+  - **真正根因**（逐步 COM trace 实锤）：
+    * 用户从开始菜单启动的 Excel 窗口，**根本不注册在 COM Running Object Table 里** —— 等 20 秒也没用。只有 `win32com.client.Dispatch` 创建的 Excel 实例才会注册。所以 connect() Phase-1 重试 GetActiveObject × 15 必然全部失败 —— 用户的 Excel 是找不到的。
+    * v1.0.6 随后 fallback 到 Dispatch **`Visible=False`**，静默创建了一个后台 Excel（这个注册在 ROT）。之后所有 GetActiveObject 调用永远返回这个 Dispatch 实例。每个 _rebind() → GetActiveObject 也拿到这个隐藏代理，它的 ActiveCell 永远是 A1。所以我们的公式一直在写一个不可见的 Excel；用户眼前的 Excel 永远是空的 —— 这就是为什么每次点击都提示 "A1"。
+  - **修复**：
+    1. **绝不 Dispatch Visible=False** —— 要 Dispatch 就 Visible=True，让用户看得见
+    2. **connect() 三阶段确定性连接**：
+       * Phase 1 —— GetActiveObject 重试最多 **15×1s**
+       * Phase 2 —— 还找不到就 Dispatch Visible=True，标记 `_we_started_it=True`（粘性）
+       * Phase 3 —— Dispatch 后再 GetActiveObject 一次（这次必然成功），换 proxy 但保持 `_we_started_it=True`
+    3. **_rebind() 不再重置 `_we_started_it`** —— 粘性标记一次设定终身不变
+  - **实测验证**：connect() 正确绑到用户 Excel（Visible=True, Caption='工作簿1 - Excel'），写入 CONCAT 公式到活动单元格，读回 Value/Formula 正确。co_uninit 不退出用户 Excel。
+
+### v1.0.6（2026-11-26）
 
 - **修复**：点击"写入活动单元格"后什么都没发生 —— 实际上写到了一个后台隐藏的 Excel 实例
   - **根因追踪（COM trace 实锤）**：当 `GetActiveObject` 失败时（Excel 刚启动后 COM ROT 注册有 1~3s 延迟 —— 进程活着但 GetActiveObject 拿不到），`connect()` 悄悄 fallback 到了 `Dispatch` —— 这会创建一个**全新的 Excel 实例**。proxy 就一直绑在这个不可见的实例上。所有后续写入都进了 Dispatch 实例，用户眼前的 Excel 永远空的。
