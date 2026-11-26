@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ClaraEasyExcel"
-version = "1.0.0"
+version = "1.0.1"
 description = "A lightweight Excel assistant — float-sidecar window that writes and diagnoses common formulas and VBA on the active cell."
 readme = "README.md"
 license = { text = "MIT" }
