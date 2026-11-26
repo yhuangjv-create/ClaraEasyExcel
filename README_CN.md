@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![版本](https://img.shields.io/badge/version-1.0.1-blue)
+![版本](https://img.shields.io/badge/version-1.0.2-blue)
 [![许可证: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![平台](https://img.shields.io/badge/platform-windows-blue)
@@ -58,7 +58,7 @@ Excel 新手快速编写常用内部公式和（规划中）VBA 宏：
 
 ## 功能特性
 
-### 公式引擎（v1.0.1 — 5 个核心公式）
+### 公式引擎（v1.0.2 — 5 个核心公式）
 
 每个公式都自带完整的 **引导 → 生成 → 诊断** 流水线：
 
@@ -190,7 +190,18 @@ MIT — 详见 [LICENSE](./LICENSE)
 <a id="版本更迭"></a>
 ## 版本更迭
 
-### 最新 — v1.0.1（2026-11-26）
+### 最新 — v1.0.2（2026-11-26）
+
+- 修复 `run.bat` 在 Windows CMD 下报 "'M' 不是内部或外部命令"
+  - **根因**：.bat 文件以 Unix LF 行尾写入，而 Windows CMD 只认 CRLF（`\r\n`）。
+    多行 `if ( ... )` 块与 `REM` 注释被 CMD 当成乱码解析，`REM =====`
+    最终退化成用户看到的 `M`。
+  - **修复**：重写 `run.bat` 为纯单行 `if / goto` 分支（避免多行块），
+    并强制以 **ASCII + CRLF**（无 BOM）格式落盘。校验结果：43 个 CR + 43 个 LF，
+    每行结尾都是 `0D 0A`。
+- 快速验证通过：run.bat 直接启动 `pythonw.exe`，控制台无任何报错。
+
+### v1.0.1（2026-11-26）
 
 - 新增 `run.bat` 一键启动脚本（自动检测 venv / pythonw 回退）
 - 原 README 拆分为两份独立文件：`README.md`（英文版）+ `README_CN.md`（中文版）

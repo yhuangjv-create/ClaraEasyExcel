@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.0.1-blue)
+![Version](https://img.shields.io/badge/version-1.0.2-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.0.1 — 5 core formulas)
+### Formula engine (v1.0.2 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -194,7 +194,19 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.0.1 (2026-11-26)
+### Latest — v1.0.2 (2026-11-26)
+
+- Fixed `run.bat` failing on Windows CMD with "'M' is not recognized"
+  - **Root cause**: the .bat file was written with Unix LF-only line endings
+    — Windows CMD requires CRLF (`\r\n`). Every multi-line `if ( ... )` block
+    and `REM` comment got mangled into garbage commands, and `REM =====`
+    degenerated into the `M` the user saw on screen.
+  - **Fix**: rewrote `run.bat` using only simple, single-line `if / goto`
+    branches (no multi-line blocks) and forcibly re-saved as **ASCII + CRLF**
+    with no BOM. Verified: 43 CR + 43 LF pairs, every line ends with `0D 0A`.
+- Quick test — run.bat now launches `pythonw.exe` directly, no errors on console.
+
+### v1.0.1 (2026-11-26)
 
 - Added `run.bat` one-click launcher (auto-detects venv / pythonw fallback)
 - Split bilingual README into two stand-alone files: `README.md` (English) + `README_CN.md` (中文)
