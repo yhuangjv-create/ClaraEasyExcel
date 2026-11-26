@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.0.5-blue)
+![Version](https://img.shields.io/badge/version-1.0.6-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.0.5 — 5 core formulas)
+### Formula engine (v1.0.6 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -194,7 +194,36 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.0.5 (2026-11-26)
+### Latest — v1.0.6 (2026-11-26)
+
+- **Fixed**: "Write to active cell" writes into a hidden Excel, not the user's visible one
+  - **Root cause traced with a live COM trace**: when `GetActiveObject` fails
+    (COM ROT registration lags 1-3s after Excel starts — even when the process
+    is alive), our `connect()` silently fell through to `Dispatch`, which
+    spawns a **brand-new hidden Excel instance**.  The proxy stayed bound to
+    that invisible instance forever after.  Every subsequent write landed in
+    the Dispatch instance; the user's visible Excel stayed empty.  They saw
+    "does nothing" — we were writing, just into the wrong Excel.
+  - **Fix — `_rebind()` before EVERY COM call**: every `get_active_cell`,
+    `set_formula`, `get_cell_error`, `set_value`, etc. now starts by calling
+    `_rebind()`, which force-runs `win32com.client.GetActiveObject` **right
+    before the operation** and swaps the proxy.  This guarantees we always
+    write into whichever Excel window the user is currently looking at —
+    regardless of what happened at `connect()` time.
+  - **Extra safeguards**:
+    1. `connect()` retries `GetActiveObject` **6 times × 1 second** before
+       falling through to `Dispatch` — gives COM registration plenty of lag
+       time.
+    2. The Dispatch fallback now starts Excel `Visible=False` (background
+       only) and sets `_we_started_it=True` so we **close only our own**
+       instance at shutdown — the user's Excel stays open.
+    3. `co_uninit()` only calls `Quit()` when `_we_started_it=True` —
+       absolutely never closes a user-opened Excel.
+  - **Verified**: live E2E trace with a real Excel already open — write to
+    active cell A1, read back `Value=2.0`, `Formula==1+1`.  `_rebind()`
+    always returns the correct instance.
+
+### v1.0.5 (2026-11-26)
 
 - **Fixed**: clicking "Write to active cell" does **nothing visible** (formula never appears in Excel)
   - **Three stacked root causes**, all found with a step-by-step COM bridge trace:

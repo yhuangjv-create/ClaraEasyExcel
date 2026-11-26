@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![版本](https://img.shields.io/badge/version-1.0.5-blue)
+![版本](https://img.shields.io/badge/version-1.0.6-blue)
 [![许可证: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![平台](https://img.shields.io/badge/platform-windows-blue)
@@ -58,7 +58,7 @@ Excel 新手快速编写常用内部公式和（规划中）VBA 宏：
 
 ## 功能特性
 
-### 公式引擎（v1.0.5 — 5 个核心公式）
+### 公式引擎（v1.0.6 — 5 个核心公式）
 
 每个公式都自带完整的 **引导 → 生成 → 诊断** 流水线：
 
@@ -190,7 +190,18 @@ MIT — 详见 [LICENSE](./LICENSE)
 <a id="版本更迭"></a>
 ## 版本更迭
 
-### 最新 — v1.0.5（2026-11-26）
+### 最新 — v1.0.6（2026-11-26）
+
+- **修复**：点击"写入活动单元格"后什么都没发生 —— 实际上写到了一个后台隐藏的 Excel 实例
+  - **根因追踪（COM trace 实锤）**：当 `GetActiveObject` 失败时（Excel 刚启动后 COM ROT 注册有 1~3s 延迟 —— 进程活着但 GetActiveObject 拿不到），`connect()` 悄悄 fallback 到了 `Dispatch` —— 这会创建一个**全新的 Excel 实例**。proxy 就一直绑在这个不可见的实例上。所有后续写入都进了 Dispatch 实例，用户眼前的 Excel 永远空的。
+  - **修复 —— 每个 COM 调用前强制 `_rebind()`**：`get_active_cell` / `set_formula` / `get_cell_error` / `set_value` 等**每次操作前**先调 `_rebind()`，里面强制跑 `win32com.client.GetActiveObject` 重新换 proxy。这样无论 connect 时是什么状态，**永远写到用户当前正在看的那个 Excel 窗口**。
+  - **额外防护**：
+    1. `connect()` 重试 `GetActiveObject` **6 次 × 1 秒**才放弃 Dispatch —— 给 COM 注册足够的时间
+    2. Dispatch fallback 现在以 `Visible=False`（后台静默）启动，并且设 `_we_started_it=True` —— 这样我们只在退出时关闭**自己创建的**实例，用户的 Excel 保持打开
+    3. `co_uninit()` 只在 `_we_started_it=True` 时才调 `Quit()` —— 绝对不退出用户自己开的 Excel
+  - **实测验证**：真实 Excel 已打开的场景下写入活动单元格 A1，读回 `Value=2.0`，`Formula==1+1`。`_rebind()` 始终返回正确实例。
+
+### v1.0.5（2026-11-26）
 
 - **修复**：点击"写入活动单元格"后 **Excel 里什么都没发生**（公式根本没被写入）
   - **三层叠加根因**，通过逐步 trace COM 桥接层全部定位：

@@ -1,17 +1,26 @@
-"""COM bridge — runs ALL COM calls on the CALLER's thread.
+"""COM bridge — single-threaded on GUI thread, ALWAYS re-binds to the
+user's currently-active Excel window before any read/write.
 
-Design principles:
-  * COM proxies are THREAD-AFFINED to the apartment that created them.
-    We create and use them on the GUI thread; that's perfectly legal and
-    avoids all QThread / invokeMethod / apartment-marshaling bugs.
-  * We guard EVERY Excel call with DisplayAlerts=False / ScreenUpdating=False
-    / EnableEvents=False so Excel background work (recalculation, dialogs,
-    VBA macros) can never block our write.
-  * pythoncom.CoInitialize() is called ONCE at app start, CoUninitialize()
-    ONCE at app shutdown — balanced pair on the same thread.
+WHY WE RE-BIND BEFORE EVERY OPERATION (critical):
+  Python's `win32com.client.GetActiveObject("Excel.Application")` fails
+  (MK_E_UNAVAILABLE) for up to ~2 seconds after Excel starts, even though
+  the process is already alive.  During that window our `connect()` falls
+  through to `Dispatch()` which spawns a BRAND-NEW Excel instance, binds
+  our proxy to it, and all subsequent writes land in THAT instance —
+  which the user can't see.  Result: "write to active cell does nothing".
+  Fix: **re-bind via GetActiveObject immediately before every COM call**.
+  If it fails we know the user hasn't opened Excel yet and we error out
+  cleanly — never silently write into a hidden Dispatch instance.
+
+Threading:
+  COM proxies are apartment-affined.  We create + use them on the GUI
+  thread only — one CoInitialize at app start, one CoUninitialize at exit.
+  See `_with_protection` for the DisplayAlerts/ScreenUpdating/EnableEvents
+  shield that prevents Excel-side blocking.
 """
 from __future__ import annotations
 
+import time
 from typing import Any
 
 try:
@@ -22,9 +31,8 @@ except ImportError:  # non-Windows or pywin32 not installed
     pythoncom = None  # type: ignore[assignment]
 
 
-_XL_ERROR_CODES = {
-    # Mapped against ACTUAL Excel COM return values (tested on Excel 365 dynamic dispatch).
-    # Codes come directly from win32com.client Range.Value when the cell contains an error.
+# Actual Excel 365 COM error codes — mapped by live `Range.Value` tests.
+_XL_ERROR_CODES: dict[int, str] = {
     -2146826281: "#DIV/0!",
     -2146826246: "#N/A",
     -2146826259: "#NAME?",
@@ -36,14 +44,12 @@ _XL_ERROR_CODES = {
 
 
 def _a1(cell) -> str:
-    """Convert a COM Range object to A1-style address WITHOUT dollar signs.
+    """Convert a COM Range to A1 address without dollar signs.
 
-    Why not use Range.Address(False, False)?
-      On newer Excel (365+) dynamic-dispatch returns `.Address` as a **string**
-      property that already equals "$A$1" — calling it like `.Address(False, False)`
-      triggers `TypeError: 'str' object is not callable`.
-      We construct the address deterministically from Row + Column and therefore
-      never depend on COM's Address method signature.
+    We do NOT use Range.Address(False, False) because on current Excel
+    (365) dynamic-dispatch proxies expose .Address as a STRING property
+    (returns "$A$1" directly), not a callable.  Calling it throws
+    TypeError.  Row + Column → A1 letters is deterministic across versions.
     """
     row = int(cell.Row)
     col = int(cell.Column)
@@ -56,60 +62,82 @@ def _a1(cell) -> str:
 
 
 class ExcelComBridge:
-    """Single-threaded COM wrapper.  Safe to create / use from GUI thread."""
+    """Sync COM wrapper.  Callers always run on the GUI thread."""
 
     def __init__(self) -> None:
         self._excel: Any = None
-        # CoInitialize happens once on first connect, balanced by CoUninitialize on shutdown
         self._co_inited = False
+        # True when WE dispatched an Excel instance (not user-opened).
+        # We will close OUR instances on quit; user-opened ones stay alive.
+        self._we_started_it = False
 
-    # ---------- init / teardown ----------
+    # ---------- apartment ----------
     def co_init(self) -> None:
-        """Call ONCE at app start (GUI thread).  Safe to call multiple times —
-        COM maintains a refcount; calling again is a no-op on the same thread."""
         if pythoncom is not None and not self._co_inited:
             pythoncom.CoInitialize()
             self._co_inited = True
 
     def co_uninit(self) -> None:
         if pythoncom is not None and self._co_inited:
-            self.disconnect()
+            # Only quit if *we* started the instance.  Never close user's Excel!
+            if self._we_started_it and self._excel is not None:
+                try:
+                    self._excel.Quit()
+                except Exception:
+                    pass
+            self._excel = None
+            self._we_started_it = False
             pythoncom.CoUninitialize()
             self._co_inited = False
 
-    # ---------- connection ----------
+    # ---------- public connect ----------
     def connect(self) -> dict:
+        """Try hard to bind to the USER's already-running Excel.
+
+        Strategy:
+          1. Try GetActiveObject up to 5 times with 0.5s gap — gives Excel
+             time to register itself in the ROT after the user starts it.
+          2. If still nothing, Dispatch a fresh Excel and mark
+             _we_started_it=True so we know to quit it on shutdown.
+          3. After any path, ensure ActiveSheet exists (Dispatch starts
+             with no workbook = ActiveSheet is None).
+        """
         self.co_init()
         if win32com is None:
             return {"ok": False, "error": "pywin32 not installed"}
-        try:
-            self._excel = win32com.client.GetActiveObject("Excel.Application")
-        except Exception:
+
+        # Try to bind to user's Excel (retry because ROT registration lags)
+        for _ in range(6):
             try:
+                self._excel = win32com.client.GetActiveObject("Excel.Application")
+                self._we_started_it = False
+                break
+            except Exception:
+                time.sleep(1.0)
+
+        if self._excel is None:
+            try:
+                # Dispatch fallback — WE own this instance, start hidden
                 self._excel = win32com.client.Dispatch("Excel.Application")
-                self._excel.Visible = True
-                self._excel.Workbooks.Add()  # ensure ActiveSheet is never None
+                self._excel.Visible = False  # background only
+                self._excel.Workbooks.Add()
+                self._we_started_it = True
             except Exception as exc:
                 self._excel = None
+                self._we_started_it = False
                 return {"ok": False, "error": str(exc)}
 
-        # Safety: even after GetActiveObject, user might have closed all workbooks
+        # Safety: make sure ActiveSheet isn't None
         if self._excel.ActiveSheet is None:
             try:
                 self._excel.Workbooks.Add()
             except Exception:
                 pass
+
         return {"ok": True, "data": "connected"}
 
-    def disconnect(self) -> None:
-        try:
-            if self._excel is not None:
-                self._excel.Quit()
-        except Exception:
-            pass
-        self._excel = None
-
     def is_connected(self) -> bool:
+        """Best-effort check — fast, non-blocking."""
         if self._excel is None:
             return False
         try:
@@ -117,14 +145,42 @@ class ExcelComBridge:
             return True
         except Exception:
             self._excel = None
+            self._we_started_it = False
             return False
 
-    # ---------- protected execute ----------
+    # ---------- private: ALWAYS re-bind before touching COM ----------
+    def _rebind(self) -> bool:
+        """Force _excel to point to the currently-active Excel window.
+
+        This is called before EVERY read/write.  If the user opens a second
+        Excel window, closes theirs, or our proxy went stale, we refresh.
+
+        Returns True if we now have a usable proxy, False otherwise.
+        """
+        if win32com is None or pythoncom is None:
+            return False
+        try:
+            self._excel = win32com.client.GetActiveObject("Excel.Application")
+            self._we_started_it = False
+        except Exception:
+            # No running Excel — give up
+            self._excel = None
+            self._we_started_it = False
+            return False
+        # Make sure ActiveSheet is valid
+        if self._excel.ActiveSheet is None:
+            try:
+                self._excel.Workbooks.Add()
+            except Exception:
+                return False
+        return True
+
+    # ---------- protected exec ----------
     def _with_protection(self, fn):
-        """Run `fn()` with Excel's screen/events/alerts all disabled so nothing
-        on the Excel side can block the call or pop a dialog."""
-        if not self.is_connected():
-            return {"ok": False, "error": "Excel not connected"}
+        """Run `fn()` on the active Excel instance with background work disabled."""
+        if not self._rebind():
+            return {"ok": False, "error": "Excel not connected. Please open Excel first."}
+
         old_su = old_ea = old_da = None
         try:
             try:
@@ -162,9 +218,9 @@ class ExcelComBridge:
             sel = self._excel.Selection
             if sel.Rows.Count == 1 and sel.Columns.Count == 1:
                 return {"ok": True, "data": _a1(sel)}
-            top_left = _a1(sel.Cells(1, 1))
-            bottom_right = _a1(sel.Cells(sel.Rows.Count, sel.Columns.Count))
-            return {"ok": True, "data": f"{top_left}:{bottom_right}"}
+            tl = _a1(sel.Cells(1, 1))
+            br = _a1(sel.Cells(sel.Rows.Count, sel.Columns.Count))
+            return {"ok": True, "data": f"{tl}:{br}"}
 
         return self._with_protection(_work)
 
@@ -172,7 +228,7 @@ class ExcelComBridge:
         def _work() -> dict:
             ws = self._excel.ActiveSheet
             val = ws.Range(address).Value
-            if isinstance(val, (int, float)) and val in _XL_ERROR_CODES:
+            if isinstance(val, int) and val in _XL_ERROR_CODES:
                 return {"ok": True, "data": _XL_ERROR_CODES[val], "is_error": True}
             return {"ok": True, "data": val, "is_error": False}
 
