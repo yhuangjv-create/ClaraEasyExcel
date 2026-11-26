@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.0.2-blue)
+![Version](https://img.shields.io/badge/version-1.0.3-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.0.2 — 5 core formulas)
+### Formula engine (v1.0.3 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -194,7 +194,17 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.0.2 (2026-11-26)
+### Latest — v1.0.3 (2026-11-26)
+
+- Eliminated the CMD **black console window** when launching `run.bat`
+  - **Root cause**: double-clicking any `.bat` necessarily spawns a CMD console; using `pythonw.exe` inside the bat only hides Python's console, not CMD's.
+  - **Fix**: split the launcher into two files:
+    1. `run.bat` — only detects which Python to use, then calls `start "" wscript run.vbs "python_path"` and **immediately** `exit /b 0`. The CMD window closes in 1~2 frames.
+    2. `run.vbs` — uses `WScript.Shell.Run pythonCmd, 0, False`. The second argument `0` means "hidden window"; this is the official Windows way to launch a GUI app with zero flash.
+  - **Tested**: `pythonw.exe` launches correctly, no lingering `cmd.exe` process, no visible black window.
+  - This also means `run.vbs` can be double-clicked directly as an alternative entry point (falls back to `pythonw.exe` on PATH if no argument).
+
+### v1.0.2 (2026-11-26)
 
 - Fixed `run.bat` failing on Windows CMD with "'M' is not recognized"
   - **Root cause**: the .bat file was written with Unix LF-only line endings

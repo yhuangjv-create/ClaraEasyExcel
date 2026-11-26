@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![版本](https://img.shields.io/badge/version-1.0.2-blue)
+![版本](https://img.shields.io/badge/version-1.0.3-blue)
 [![许可证: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![平台](https://img.shields.io/badge/platform-windows-blue)
@@ -58,7 +58,7 @@ Excel 新手快速编写常用内部公式和（规划中）VBA 宏：
 
 ## 功能特性
 
-### 公式引擎（v1.0.2 — 5 个核心公式）
+### 公式引擎（v1.0.3 — 5 个核心公式）
 
 每个公式都自带完整的 **引导 → 生成 → 诊断** 流水线：
 
@@ -190,7 +190,17 @@ MIT — 详见 [LICENSE](./LICENSE)
 <a id="版本更迭"></a>
 ## 版本更迭
 
-### 最新 — v1.0.2（2026-11-26）
+### 最新 — v1.0.3（2026-11-26）
+
+- 彻底消除双击 `run.bat` 时出现的 CMD **黑色控制台窗口**
+  - **根因**：双击任何 `.bat` 文件，Windows 必然先拉起一个 CMD 控制台；bat 里用 `pythonw.exe` 只能隐藏 Python 自己的黑窗，CMD 的黑框还是会出现。
+  - **修复**：启动器拆分成两份文件：
+    1. `run.bat` —— 只负责探测 Python 路径，然后调 `start "" wscript run.vbs "python路径"` 并 **立即** `exit /b 0`。CMD 窗口在 1~2 帧内就会关闭。
+    2. `run.vbs` —— 用 `WScript.Shell.Run pythonCmd, 0, False`。第二个参数 `0` = 隐藏窗口；这是 Windows 官方推荐的 GUI 无闪现启动方式。
+  - **实测验证**：`pythonw.exe` 正常启动，无遗留 `cmd.exe` 进程，屏幕上看不到任何黑窗。
+  - `run.vbs` 也可以独立双击作为备用入口（无参数时回退到 PATH 里的 `pythonw.exe`）。
+
+### v1.0.2（2026-11-26）
 
 - 修复 `run.bat` 在 Windows CMD 下报 "'M' 不是内部或外部命令"
   - **根因**：.bat 文件以 Unix LF 行尾写入，而 Windows CMD 只认 CRLF（`\r\n`）。

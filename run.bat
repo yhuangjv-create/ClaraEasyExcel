@@ -1,7 +1,8 @@
 @echo off
 REM ====================================================================
 REM ClaraEasyExcel - One-click launcher for Windows
-REM Auto-detects Python, prefers pythonw.exe (no console window)
+REM   This .bat only discovers python, then hands off to run.vbs
+REM   which launches pythonw.exe with NO console window.
 REM ====================================================================
 cd /d "%~dp0"
 
@@ -24,20 +25,23 @@ exit /b 1
 
 :use_venv_w
 set "PYTHON_CMD=.venv\Scripts\pythonw.exe"
-goto run
+goto run_vbs
 
 :use_venv_py
 set "PYTHON_CMD=.venv\Scripts\python.exe"
-goto run
+goto run_vbs
 
 :use_sys_w
 set "PYTHON_CMD=pythonw.exe"
-goto run
+goto run_vbs
 
 :use_sys_py
 set "PYTHON_CMD=python.exe"
-goto run
+goto run_vbs
 
-:run
-"%PYTHON_CMD%" entry.py
-exit /b %ERRORLEVEL%
+REM --------------------------------------------------------------------
+REM hand off to run.vbs, then exit IMMEDIATELY so the CMD window closes
+REM --------------------------------------------------------------------
+:run_vbs
+start "" wscript "%~dp0run.vbs" "%PYTHON_CMD%"
+exit /b 0

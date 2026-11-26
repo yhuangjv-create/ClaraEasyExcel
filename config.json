@@ -4,5 +4,10 @@
   "recent_formulas": [
     "CONCAT"
   ],
-  "window_geom": null
+  "window_geom": [
+    1266,
+    40,
+    420,
+    600
+  ]
 }
