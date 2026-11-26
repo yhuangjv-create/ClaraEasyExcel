@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![版本](https://img.shields.io/badge/version-1.0.4-blue)
+![版本](https://img.shields.io/badge/version-1.0.5-blue)
 [![许可证: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![平台](https://img.shields.io/badge/platform-windows-blue)
@@ -58,7 +58,7 @@ Excel 新手快速编写常用内部公式和（规划中）VBA 宏：
 
 ## 功能特性
 
-### 公式引擎（v1.0.4 — 5 个核心公式）
+### 公式引擎（v1.0.5 — 5 个核心公式）
 
 每个公式都自带完整的 **引导 → 生成 → 诊断** 流水线：
 
@@ -190,7 +190,18 @@ MIT — 详见 [LICENSE](./LICENSE)
 <a id="版本更迭"></a>
 ## 版本更迭
 
-### 最新 — v1.0.4（2026-11-26）
+### 最新 — v1.0.5（2026-11-26）
+
+- **修复**：点击"写入活动单元格"后 **Excel 里什么都没发生**（公式根本没被写入）
+  - **三层叠加根因**，通过逐步 trace COM 桥接层全部定位：
+  - **1. Dispatch 启动的 Excel 没有工作簿** — `win32com.client.Dispatch("Excel.Application")` 只创建 Excel 进程，**不自动打开工作簿**，所以 `ActiveWorkbook` / `ActiveSheet` / `ActiveCell` 全部是 `None`，任何访问都会报 `NoneType has no attribute X`。修复：Dispatch 后立即调用 `Workbooks.Add()`；GetActiveObject 后也二次检查用户是否关掉了所有工作簿。
+  - **2. `.Address(False, False)` 已过时** — 当前 Excel（365）的 dynamic-dispatch 代理里，`.Address` 是 **字符串属性**（直接返回 `"$A$1"`），不是可调用方法。`Address(False, False)` 会抛 `TypeError: 'str' object is not callable`。修复：新增 `_a1(range)` 辅助函数，用 `Row` + `Column` 自行拼接 A1 地址 —— 确定性、不依赖 COM 方法签名、Excel 跨版本稳定。
+  - **3. `_XL_ERROR_CODES` 表完全错误** — 本 Excel 版本 `Range.Value` 返回的整数错误码跟手写表完全对不上。7 种错误码（#DIV/0! / #N/A / #NAME? / #NULL! / #NUM! / #REF! / #VALUE!）全部按实测 COM 输出重新映射，表现在能正确识别。
+  - **试过但放弃的方案**：
+    - QThread + `QMetaObject.invokeMethod` QueuedConnection —— QThread 的 STA COM 代理在 `CoInitialize` 二次调用后直接失效（COM apartment 跟 QThread 事件循环不兼容），还不如同步方案。
+  - **最终交付**：`excel_bridge.py` 回归 **GUI 线程同步调用** —— 只需在 app 启动时 `co_init()` 一次，所有 COM 调用走 `_with_protection()`（关闭 DisplayAlerts/ScreenUpdating/EnableEvents 防护 Excel 后台阻塞），退出时 `co_uninit()` 一次。无 signal 链、无 `_pending_*` 状态机、无 QThread 管理。
+
+### v1.0.4（2026-11-26）
 
 - **修复**：点击"写入活动单元格"后整个程序卡死
   - **根因**：所有 Excel COM 调用（读活动单元格、写公式、读单元格错误、……）都在 **PySide6 GUI 主线程**上同步执行。COM 代理调用内部需要等待 Excel 主线程响应 —— 一旦 Excel 正在做后台重算、弹出 `DisplayAlerts` 对话框、或者 VBA 宏还没跑完，COM 调用就会阻塞 GUI 事件循环，整个窗口看起来像"死"了。

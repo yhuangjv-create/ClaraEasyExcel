@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.0.4-blue)
+![Version](https://img.shields.io/badge/version-1.0.5-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.0.4 — 5 core formulas)
+### Formula engine (v1.0.5 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -194,7 +194,18 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.0.4 (2026-11-26)
+### Latest — v1.0.5 (2026-11-26)
+
+- **Fixed**: clicking "Write to active cell" does **nothing visible** (formula never appears in Excel)
+  - **Three stacked root causes**, all found with a step-by-step COM bridge trace:
+  - **1. `Dispatch` starts Excel with no workbook** — `win32com.client.Dispatch("Excel.Application")` creates a fresh Excel process but does NOT open a workbook, so `ActiveWorkbook`, `ActiveSheet`, and `ActiveCell` are all `None`. Any call that touches them returns `NoneType has no attribute X`.  Fix: after Dispatch we now call `Workbooks.Add()`, and we also re-check after GetActiveObject in case the user closed all workbooks.
+  - **2. `.Address(False, False)` is obsolete** — on current Excel (365) dynamic-dispatch proxies, `.Address` is a **string property** that returns `"$A$1"` directly — it's no longer callable.  `Address(False, False)` triggers `TypeError: 'str' object is not callable`.  Fix: new `_a1(range)` helper computes A1-style address deterministically from `Row` + `Column` (never depends on COM method signatures that change between Excel versions).
+  - **3. `_XL_ERROR_CODES` table was completely wrong** — the integer error codes returned by `Range.Value` on this Excel don't match what the handwritten table assumed.  All 7 error codes (#DIV/0!, #N/A, #NAME?, #NULL!, #NUM!, #REF!, #VALUE!) were re-mapped by live COM tests on Excel 365, and the table now reflects the actual codes we get back.
+  - **What we tried first** and rejected:
+    - QThread + `QMetaObject.invokeMethod` with QueuedConnection — the thread's STA COM proxy became invalid as soon as `CoInitialize` was called twice (COM apartment + QThread event-loop incompatibility).  We simplified back to **single-threaded on the GUI thread**.  Every COM call takes under 50 ms (confirmed by trace); `DisplayAlerts=False / ScreenUpdating=False / EnableEvents=False` already shields us from Excel-side blocking, so the GUI no longer freezes either.
+  - **What we actually delivered**: `excel_bridge.py` is back to a straightforward sync wrapper on the GUI thread — just `co_init()` once at app start, all calls protected by `_with_protection()`, `co_uninit()` once at shutdown.  No more signal chains, `_pending_*` state machines, or QThread management.
+
+### v1.0.4 (2026-11-26)
 
 - **Fixed**: clicking "Write to active cell" froze the entire app
   - **Root cause**: every Excel COM call (`get_active_cell`, `set_formula`,
