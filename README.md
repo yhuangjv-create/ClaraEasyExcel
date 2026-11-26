@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.0.7-blue)
+![Version](https://img.shields.io/badge/version-1.0.8-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.0.7 — 5 core formulas)
+### Formula engine (v1.0.8 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -194,7 +194,28 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.0.7 (2026-11-26)
+### Latest — v1.0.8 (2026-11-26)
+
+- **Fixed**: CONCAT / CONCATENATE both appeared as separate cards on the home screen
+  - **Root cause**: `concatenate.py` stacked two `@register` decorators — one for
+    `"CONCAT"`, one for `"CONCATENATE"` — and `register()` blindly wrote both into
+    the `_REGISTRY` dict.  `all_formula_names()` then returned both keys, which the
+    GUI rendered as two CONCAT cards.
+  - **Fix** (minimal, 3 changes):
+    1. `base.py` registry split into `_REGISTRY` (canonical names only) +
+       `_ALIASES` (`alias → canonical`).  New `_INSTANCE_TO_NAME` reverse map
+       lets `register()` detect when two decorators hit the same class and
+       automatically demote subsequent ones to aliases.
+    2. `get_formula(name)` now does a 2-step lookup: canonical first, then
+       alias → same formula instance resolves whether you type CONCAT or
+       CONCATENATE in the intent search.
+    3. Decorator order swapped in `concatenate.py` so **CONCAT** (modern
+       Excel 2019+ name, recommended) becomes the canonical card and
+       **CONCATENATE** is stored as an alias.
+  - **Verified**: `all_formula_names()` returns exactly 5 items (no dupes);
+    `get_formula("CONCAT") is get_formula("CONCATENATE")` → True.
+
+### v1.0.7 (2026-11-26)
 
 - **Fixed**: click "Write to active cell" → always wrote to A1 (user's real cell untouched)
   - **Real root cause** (found by step-by-step COM trace of a real open Excel):

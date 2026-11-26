@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![版本](https://img.shields.io/badge/version-1.0.7-blue)
+![版本](https://img.shields.io/badge/version-1.0.8-blue)
 [![许可证: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![平台](https://img.shields.io/badge/platform-windows-blue)
@@ -58,7 +58,7 @@ Excel 新手快速编写常用内部公式和（规划中）VBA 宏：
 
 ## 功能特性
 
-### 公式引擎（v1.0.7 — 5 个核心公式）
+### 公式引擎（v1.0.8 — 5 个核心公式）
 
 每个公式都自带完整的 **引导 → 生成 → 诊断** 流水线：
 
@@ -190,7 +190,17 @@ MIT — 详见 [LICENSE](./LICENSE)
 <a id="版本更迭"></a>
 ## 版本更迭
 
-### 最新 — v1.0.7（2026-11-26）
+### 最新 — v1.0.8（2026-11-26）
+
+- **修复**：首页"CONCAT 拼接文本"卡片出现两个重复
+  - **根因**：`concatenate.py` 叠了两个 `@register` 装饰器（CONCAT + CONCATENATE），旧版 `register()` 把两个都写进了 `_REGISTRY` dict。`all_formula_names()` 返回两个 key → GUI 渲染两张 CONCAT 卡片。
+  - **修复**（最小 3 处改动）：
+    1. `base.py` registry 拆成 `_REGISTRY`（仅 canonical 主名）+ `_ALIASES`（alias → canonical 映射）。新增 `_INSTANCE_TO_NAME` 反向表让 `register()` 检测到同一类被多装饰器命中时自动降级后续为别名。
+    2. `get_formula(name)` 先查主名再查别名 —— 意图搜索里无论用户打 CONCAT 还是 CONCATENATE 都能搜到同一个公式实例。
+    3. `concatenate.py` 调换装饰器顺序，让 **CONCAT**（Excel 2019+ 新版推荐名）成为首页展示的 canonical 卡片，CONCATENATE 存为别名。
+  - **实测**：`all_formula_names()` 精确返回 5 项（无重复）；`get_formula("CONCAT") is get_formula("CONCATENATE")` → True。
+
+### v1.0.7（2026-11-26）
 
 - **修复**：点击"写入活动单元格"永远提示写入 A1，实际什么都没写进用户的 Excel
   - **真正根因**（逐步 COM trace 实锤）：

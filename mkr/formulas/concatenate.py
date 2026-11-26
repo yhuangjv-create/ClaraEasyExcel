@@ -4,8 +4,8 @@ from __future__ import annotations
 from mkr.formulas.base import ArgStep, FormulaBase, Suggestion, register
 
 
-@register("CONCAT")
-@register("CONCATENATE")
+@register("CONCATENATE")   # alias → bottom-up: CONCAT applies first (canonical), CONCATENATE becomes alias
+@register("CONCAT")        # canonical (modern Excel 2019+ name)
 class Concatenate(FormulaBase):
     name = "CONCAT"
     zh_name = "CONCAT 拼接文本"

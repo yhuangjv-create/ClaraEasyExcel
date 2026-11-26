@@ -101,37 +101,65 @@ def _looks_like_range(v: str) -> str | None:
 
 # ---------- registry ----------
 _REGISTRY: dict[str, FormulaBase] = {}
+# alias → canonical name.  e.g. "CONCATENATE" → "CONCAT"
+_ALIASES: dict[str, str] = {}
+# reverse map: instance id → canonical name, so register() can detect duplicates
+_INSTANCE_TO_NAME: dict[int, str] = {}
 
 
 def register(name: str):
     """Class decorator — registers a FormulaBase subclass under `name`.
 
-    Usage:
-        @register("VLOOKUP")
-        class VLookup(FormulaBase): ...
+    Multi-registering (e.g. CONCAT + CONCATENATE on the same class) only
+    keeps the FIRST name as the canonical key in `_REGISTRY`; subsequent
+    names go into `_ALIASES`.  This prevents duplicate cards on the home
+    screen while still letting intent-matching hit any alias.
 
-    Also supports multi-registering with aliases:
         @register("CONCAT")
         @register("CONCATENATE")
         class Concatenate(FormulaBase): ...
+
+    _REGISTRY = {"CONCAT": <instance>}
+    _ALIASES  = {"CONCATENATE": "CONCAT"}
     """
 
     def _decorator(cls: type) -> type:
-        # only instantiate once and re-use for each alias
-        if not isinstance(cls, FormulaBase):
-            # instantiate the subclass (it has no __init__ override)
+        # Multi-decorator safety: if a previous @register on the SAME class
+        # already instantiated, reuse that instance so `id()` stays identical.
+        existing = getattr(cls, "_formula_instance", None)
+        if existing is not None:
+            instance = existing
+        elif not isinstance(cls, FormulaBase):
             instance = cls()  # type: ignore[call-arg]
+            cls._formula_instance = instance  # stash for sibling decorators
         else:
-            instance = cls  # already an instance
+            instance = cls
+
+        iid = id(instance)
+        if iid in _INSTANCE_TO_NAME:
+            # Duplicate class → this is an ALIAS, not a new formula
+            canonical = _INSTANCE_TO_NAME[iid]
+            _ALIASES[name] = canonical
+            return cls
+
+        # First time we see this instance → canonical registration
         _REGISTRY[name] = instance
+        _INSTANCE_TO_NAME[iid] = name
         return cls
 
     return _decorator
 
 
 def get_formula(name: str) -> FormulaBase | None:
-    return _REGISTRY.get(name)
+    """Lookup by canonical name OR alias."""
+    if name in _REGISTRY:
+        return _REGISTRY[name]
+    canonical = _ALIASES.get(name)
+    if canonical is not None:
+        return _REGISTRY.get(canonical)
+    return None
 
 
 def all_formula_names() -> list[str]:
+    """Only canonical names (no duplicates from aliases)."""
     return list(_REGISTRY.keys())

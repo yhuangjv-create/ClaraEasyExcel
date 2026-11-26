@@ -12,8 +12,10 @@ def test_registry_loaded() -> None:
     assert "COUNTIF" in names
     assert "IFERROR" in names
     assert "CONCAT" in names
-    # CONCATENATE alias also registered
-    assert "CONCATENATE" in names
+    assert len(names) == 5  # no duplicates — aliases don't create new cards
+
+    # CONCATENATE is an ALIAS (not canonical) but get_formula still works
+    assert get_formula("CONCATENATE") is get_formula("CONCAT")  # same instance
 
 
 def test_intent_vlookup() -> None:
