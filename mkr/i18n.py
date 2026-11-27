@@ -77,11 +77,12 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
     "copied": {"zh": "已复制到剪贴板 ✓", "en": "Copied to clipboard ✓"},
     "written": {"zh": "已写入活动单元格 ✓", "en": "Written to active cell ✓"},
     "pick_mode_active": {
-        "zh": "已进入取数模式：窗口已最小化，请直接在 Excel 中点击或框选目标单元格，"
-              "选中后会自动识别并把窗口弹回，无需回本软件点确认。",
-        "en": "Pick mode on — the window is minimised. Click or drag-select the "
-              "target cell(s) in Excel; the address is captured automatically and "
-              "the window pops back by itself — no need to switch back and confirm.",
+        "zh": "已进入取数模式（窗口已最小化）：可以先切换工作表，再点击或框选目标区域。"
+              "按住左键拖动时不会误确认，松开左键后自动填入并把窗口弹回，无需回来点确认。",
+        "en": "Pick mode on (window minimised): switch worksheets first if you need "
+              "to, then click or drag-select the target. Nothing is captured while "
+              "the mouse is held down — release it and the address fills in and the "
+              "window pops back, no confirm click needed.",
     },
     "pick_no_change": {
         "zh": "未检测到新的选择，窗口已弹回。若要使用当前选中的单元格，可点「读取选中单元格」。",

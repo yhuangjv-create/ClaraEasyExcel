@@ -172,6 +172,11 @@ def _anchor_one(cell: str) -> str:
 
     m = re.match(r"^(\$?)([A-Z]+)(\$?)(\d+)$", cell)
     if not m:
+        # Whole-column reference picked by dragging the headers, e.g. "B"
+        # from "B:D" — anchor the column so it never shifts when copied.
+        m_col = re.match(r"^(\$?)([A-Z]+)$", cell)
+        if m_col:
+            return f"${m_col.group(2)}"
         return cell  # leave as-is if it's not A1 style (e.g. a text literal)
     col_dollar, letters, row_dollar, digits = m.groups()
     col_dollar = "$"  # always anchor column

@@ -53,6 +53,21 @@ _OK = "#E9DFFB"
 DEFAULT_BASE = DEFAULT_THEME
 
 
+def _left_button_down() -> bool:
+    """True while the physical left mouse button is held anywhere on screen.
+
+    Pick mode must never confirm mid-drag: a column-header drag from B to D
+    pauses on B:B long enough for a poll to fire, and popping the window back
+    to the front during a drag also aborts the drag itself.
+    """
+    try:
+        import ctypes
+
+        return bool(ctypes.windll.user32.GetAsyncKeyState(0x01) & 0x8000)
+    except Exception:
+        return False
+
+
 def _hex_to_rgb(value: str) -> tuple[int, int, int]:
     v = value.lstrip("#")
     if len(v) == 3:
@@ -379,9 +394,11 @@ class WizardScreen(QWidget):
         #   _pick_awaiting=True → the poll timer below watches Excel's selection
         self._pick_awaiting = False
         self._pick_mode = "cell"
-        self._pick_base: str | None = None   # selection when pick mode started
-        self._pick_last: str | None = None   # previous poll result (debounce)
+        self._pick_base: dict | None = None   # {'sheet','address','ref'} at entry
+        self._pick_last: str | None = None    # previous poll result (debounce)
         self._pick_ticks = 0
+        self._pick_pressed = False            # left button seen down since enter
+        self._pick_click_done = False         # a full click (down→up) completed
         self._pick_minimized = False  # did we minimise the window for pick mode?
         self._pick_timer = QTimer(self)
         self._pick_timer.setInterval(200)  # 200 ms → a click is captured in ~400 ms
@@ -599,21 +616,17 @@ class WizardScreen(QWidget):
         Flow:
           1. Click “Pick cell / Pick range” → we **minimise the sidecar** so
              Excel is fully in front and clickable, and start a 200 ms poll.
-          2. As soon as the user clicks / drag-selects a *different* selection
-             that is stable for two polls (~400 ms, so a drag is captured only
-             after it ends) the address is filled in **automatically** and the
-             window pops back to the front — no need to switch back and click
-             “confirm”.
+          2. The user may freely switch worksheets first (that counts as
+             navigation, not a selection).  Once they click / drag-select the
+             target and **release the mouse**, the address is filled in and the
+             window pops back by itself — no “confirm” click needed.
           3. The button doubles as a manual “read now” fallback (used when the
-             poll times out, e.g. the user wants the cell that was already
-             selected when pick mode started).
+             poll times out, e.g. the target cell was already selected).
 
         Why minimise instead of staying on top: an always-on-top frameless
-        window physically sits over Excel and intercepts the click, so the user
-        used to have to drag it aside and then click back to confirm.
-        Minimising is safe now (the Qt.Tool flag was removed in v1.2.2, so the
-        window has a taskbar button and can always be restored) and removes
-        that friction entirely.
+        window physically sits over Excel and intercepts the click.
+        Minimising is safe since v1.2.2 removed the Qt.Tool flag (there is a
+        taskbar button, so the window can always be restored).
         """
         cfg = Config.get()
         lang = cfg.lang
@@ -631,9 +644,11 @@ class WizardScreen(QWidget):
 
         self._pick_awaiting = True
         self._pick_mode = mode
-        self._pick_base = bridge.read_selection_address(mode)
+        self._pick_base = bridge.read_selection(mode)
         self._pick_last = None
         self._pick_ticks = 0
+        self._pick_pressed = False
+        self._pick_click_done = False
         self._update_pick_buttons()
         self.warn_label.setText(tr("pick_mode_active", lang=lang))
         # Get the sidecar out of the way so Excel receives the click cleanly.
@@ -661,25 +676,33 @@ class WizardScreen(QWidget):
     def _read_pick_result(self, lang: str) -> None:
         """Read Excel's current selection once and fill it in."""
         bridge = self.window().bridge  # type: ignore[attr-defined]
-        result = (
-            bridge.get_active_range_address()
-            if self._pick_mode == "range"
-            else bridge.get_active_cell_address()
-        )
-        if result.get("ok") and result.get("data"):
-            self._apply_pick(str(result["data"]))
+        ref = bridge.read_selection_address(self._pick_mode)
+        if ref:
+            self._apply_pick(ref)
         else:
             self.cancel_pick()
-            self.warn_label.setText(str(result.get("error", tr("diag_conn_fail", lang=lang))))
+            self.warn_label.setText(tr("diag_conn_fail", lang=lang))
 
     def _poll_pick(self) -> None:
-        """QTimer tick: auto-capture when the user selects a new cell."""
+        """QTimer tick: capture the selection once the user has finished choosing.
+
+        Three guards, learned from real use:
+          * **button must be up** — a column-header drag from B to D pauses on
+            B:B long enough for a poll to fire; confirming there froze the
+            range at one column, and popping the window up mid-drag aborted
+            the drag altogether;
+          * **address stable across two polls** — a click confirms in ~400 ms;
+          * **worksheet must not change** — clicking another sheet tab is
+            navigation, not a pick.  Confirming on it was why “pick a range on
+            Sheet2” was impossible: the moment Sheet2 was activated its A1 was
+            captured and the window jumped back.
+        """
         lang = Config.get().lang
         if not self.isVisible():
             self.cancel_pick()
             return
         self._pick_ticks += 1
-        if self._pick_ticks > 100:  # 100 * 200 ms = 20 s
+        if self._pick_ticks > 150:  # 150 * 200 ms = 30 s
             # Timed out: pop the window back but STAY in pick mode, so the
             # user can click “Read selected cell” to use whatever is currently
             # selected (covers the “pick the cell that was already active” case).
@@ -691,20 +714,40 @@ class WizardScreen(QWidget):
             return
 
         bridge = self.window().bridge  # type: ignore[attr-defined]
-        addr = bridge.read_selection_address(self._pick_mode)
-        if not addr or self._pick_base is None:
-            # no baseline → we cannot tell "new" from "old"; manual read only
+        snap = bridge.read_selection(self._pick_mode)
+
+        down = _left_button_down()
+        if down:
+            self._pick_pressed = True
+        elif self._pick_pressed:
+            self._pick_pressed = False
+            self._pick_click_done = True
+
+        if snap is None:
             return
-        # unchanged selection → keep waiting (also covers "pick the same cell")
-        if addr == self._pick_base:
-            self._pick_last = addr
+        sig = snap["ref"]
+        base = self._pick_base
+        if base is None:
+            # No baseline yet (Excel had no active cell at entry).
+            self._pick_base = snap
+            self._pick_last = sig
             return
-        # require the address to be stable across two polls so drag-selecting
-        # a multi-cell range is not captured halfway through the drag
-        if addr == self._pick_last:
-            self._apply_pick(addr)
+        if snap["sheet"] != base["sheet"]:
+            # Worksheet switch → navigation.  Re-baseline, never confirm.
+            self._pick_base = snap
+            self._pick_last = sig
+            self._pick_click_done = False
             return
-        self._pick_last = addr
+        if down:
+            self._pick_last = sig  # mid-drag: wait for the button to come up
+            return
+        if sig != self._pick_last:
+            self._pick_last = sig  # changed this tick → require one stable poll
+            return
+        # Same sheet, stable, button released.  Confirm a new address, or an
+        # explicit re-click of the cell that was already selected.
+        if sig != base["ref"] or self._pick_click_done:
+            self._apply_pick(sig)
 
     def _apply_pick(self, addr: str) -> None:
         self.cancel_pick()  # stops the timer and restores the window
@@ -720,6 +763,8 @@ class WizardScreen(QWidget):
         self._pick_base = None
         self._pick_last = None
         self._pick_ticks = 0
+        self._pick_pressed = False
+        self._pick_click_done = False
         self._update_pick_buttons()
 
     def _update_pick_buttons(self) -> None:

@@ -65,6 +65,16 @@ _XL_ERROR_CODES: dict[int, str] = {
 }
 
 
+def _col_letters(col: int) -> str:
+    """1-based column number → spreadsheet letters (1 → A, 27 → AA)."""
+    letters = ""
+    n = col
+    while n:
+        n, rem = divmod(n - 1, 26)
+        letters = chr(65 + rem) + letters
+    return letters
+
+
 def _a1(cell) -> str:
     """Convert a COM Range to A1 address without dollar signs.
 
@@ -73,14 +83,21 @@ def _a1(cell) -> str:
     (returns "$A$1" directly), not a callable.  Calling it throws
     TypeError.  Row + Column → A1 letters is deterministic across versions.
     """
-    row = int(cell.Row)
-    col = int(cell.Column)
-    letters = ""
-    n = col
-    while n:
-        n, rem = divmod(n - 1, 26)
-        letters = chr(65 + rem) + letters
-    return f"{letters}{row}"
+    return f"{_col_letters(int(cell.Column))}{int(cell.Row)}"
+
+
+def _quote_sheet(name: str) -> str:
+    """Quote a worksheet name the way Excel formulas need it.
+
+    Plain names (Sheet2, 汇总表) stay bare; names with spaces or leading
+    digits become 'My Sheet'.
+    """
+    if not name:
+        return "''"
+    safe = all(c.isalnum() or c in "_." or ord(c) > 127 for c in name)
+    if safe and not name[0].isdigit():
+        return name
+    return "'" + name.replace("'", "''") + "'"
 
 
 class ExcelComBridge:
@@ -385,30 +402,19 @@ class ExcelComBridge:
 
     # ---------- reads ----------
     def get_active_cell_address(self) -> dict:
+        """Address of the active cell — unqualified, used as the write target."""
         return self._with_protection(
             lambda: {"ok": True, "data": _a1(self._excel.ActiveCell)}
         )
 
-    def get_active_range_address(self) -> dict:
-        def _work() -> dict:
-            sel = self._excel.Selection
-            if sel.Rows.Count == 1 and sel.Columns.Count == 1:
-                return {"ok": True, "data": _a1(sel)}
-            tl = _a1(sel.Cells(1, 1))
-            br = _a1(sel.Cells(sel.Rows.Count, sel.Columns.Count))
-            return {"ok": True, "data": f"{tl}:{br}"}
+    def _selection_snapshot(self, mode: str) -> dict | None:
+        """{'sheet', 'address', 'ref'} for the live selection, or None.
 
-        return self._with_protection(_work)
-
-    def read_selection_address(self, mode: str = "cell") -> str | None:
-        """Silent address read used by the wizard's live pick polling.
-
-        Deliberately skips _with_protection(): toggling ScreenUpdating /
-        EnableEvents twice a second while the user drags a selection makes
-        Excel flicker and stutter.  Returns None on any failure.
+        `address` is sheet-less and tidy: a whole-column drag over B:D comes
+        back as "B:D" instead of "B1:D1048576", whole rows as "3:9".
+        `ref` is what a formula needs to stay unambiguous across worksheets
+        ("Sheet2!B:D").
         """
-        if not self._rebind():
-            return None
         try:
             if mode == "range":
                 sel = self._excel.Selection
@@ -416,12 +422,54 @@ class ExcelComBridge:
                     return None
                 rows = int(sel.Rows.Count)
                 cols = int(sel.Columns.Count)
+                first_row = int(sel.Row)
+                first_col = int(sel.Column)
+                try:
+                    total_rows = int(sel.Worksheet.Rows.Count)
+                    total_cols = int(sel.Worksheet.Columns.Count)
+                except Exception:
+                    total_rows, total_cols = 1048576, 16384
+                last_row = first_row + rows - 1
+                last_col = first_col + cols - 1
                 if rows == 1 and cols == 1:
-                    return _a1(sel)
-                return f"{_a1(sel.Cells(1, 1))}:{_a1(sel.Cells(rows, cols))}"
-            return _a1(self._excel.ActiveCell)
+                    addr = f"{_col_letters(first_col)}{first_row}"
+                elif rows >= total_rows and cols >= total_cols:
+                    addr = f"A:{_col_letters(total_cols)}"
+                elif rows >= total_rows:
+                    addr = f"{_col_letters(first_col)}:{_col_letters(last_col)}"
+                elif cols >= total_cols:
+                    addr = f"{first_row}:{last_row}"
+                else:
+                    addr = (
+                        f"{_col_letters(first_col)}{first_row}:"
+                        f"{_col_letters(last_col)}{last_row}"
+                    )
+                sheet = str(sel.Worksheet.Name)
+            else:
+                cell = self._excel.ActiveCell
+                if cell is None:
+                    return None
+                addr = _a1(cell)
+                sheet = str(self._excel.ActiveSheet.Name)
         except Exception:
             return None
+        return {"sheet": sheet, "address": addr, "ref": f"{_quote_sheet(sheet)}!{addr}"}
+
+    def read_selection(self, mode: str = "cell") -> dict | None:
+        """Silent selection snapshot — the wizard's live pick polling uses this.
+
+        Deliberately skips _with_protection(): toggling ScreenUpdating /
+        EnableEvents several times a second while the user drags a selection
+        makes Excel flicker and stutter.
+        """
+        if not self._rebind():
+            return None
+        return self._selection_snapshot(mode)
+
+    def read_selection_address(self, mode: str = "cell") -> str | None:
+        """Silent, sheet-qualified reference of the current selection."""
+        snap = self.read_selection(mode)
+        return snap["ref"] if snap else None
 
     def get_cell_value(self, address: str) -> dict:
         def _work() -> dict:

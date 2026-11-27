@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.3.0-blue)
+![Version](https://img.shields.io/badge/version-1.3.1-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.3.0 — 5 core formulas)
+### Formula engine (v1.3.1 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -80,7 +80,8 @@ lookup table won't shift by accident.
 - **Frameless floating window** — draggable, always-on-top, minimize / close
 - **Home screen** — keyword search → ranked formula cards
 - **Wizard screen** — step-by-step parameter input with live hints, warnings, and a
-  "pick from Excel" button (reads active cell / selection via COM)
+  "pick from Excel" button: switch to any worksheet, then click or drag-select
+  once and it is filled in automatically (sheet-qualified, e.g. `Sheet2!B:D`)
 - **Preview screen** — live formula preview, one-click write to active Excel cell,
   clipboard copy, auto-diagnosis with **apply-fix** buttons
 - **EN / ZH language toggle** in the title bar; persists across sessions
@@ -194,7 +195,28 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.3.0 (2026-11-27)
+### Latest — v1.3.1 (2026-11-27)
+
+- **Fixed: you can now pick a range on any worksheet, and drag as long as you
+  like.** Reported on 国开行转账明细.xlsx, step 2 (框选区域, target B:D on
+  Sheet2) — the Sheet2 tab itself was captured as the pick, and a long drag was
+  cut off at a single column.
+  - **Worksheet switches are navigation, not a pick.** Clicking another sheet
+    tab changes the selection to that sheet's active cell, which the old
+    address-only comparison treated as “the user chose this”.  The poll now
+    re-baselines on a sheet change and never confirms it.
+  - **Nothing is captured while the left mouse button is held.** A B→D
+    header drag pauses on `B:B` long enough for a poll; confirming there froze
+    the range at one column, and popping the window back to the front also
+    aborted the drag.  The button state is read with `GetAsyncKeyState`, so a
+    drag is captured only after you release the mouse.
+  - **Picked references now carry the worksheet name** (`Sheet2!B:D`), so the
+    generated formula points at the right sheet: `VLOOKUP(A2, Sheet2!$B:$D, 3,
+    FALSE)`.  Whole-column / whole-row selections are simplified from
+    `B1:D1048576` / `A3:XFD3` to `B:D` / `3:3`.
+  - Regression tests in `tests/test_pick_flow.py`.
+
+### v1.3.0 (2026-11-27)
 
 - **Picking a cell now confirms with a single selection in Excel.** Clicking
   “Pick cell / Pick range” minimises the sidecar so Excel is fully in front;
