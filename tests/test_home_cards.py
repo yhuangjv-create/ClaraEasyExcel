@@ -31,6 +31,29 @@ def app():
     return instance or QApplication([])
 
 
+def test_card_text_is_never_squeezed(app):
+    """Hover fix aside: the card must never be shorter than its own layout.
+
+    v1.3.6 sized list rows from the card's preferred height, but the item style
+    still had 6 px padding, so the card received a shorter rect than allocated;
+    Qt then squeezed the labels and clipped the top of the bold headline.
+    """
+    win = SidecarWindow(FakeBridge())
+    win.resize(320, 420)
+    win.show()
+    win.stack.setCurrentWidget(win.home)
+    for _ in range(6):
+        app.processEvents()
+
+    cards = win.home.list_widget.findChildren(QWidget, "formulaCard")
+    assert cards
+    for card in cards:
+        assert card.height() >= card.minimumSizeHint().height()
+        for label in card.findChildren(QLabel):
+            assert label.height() >= label.fontMetrics().height()
+    win.close()
+
+
 def test_card_hover_is_scoped_to_the_whole_card(app):
     win = SidecarWindow(FakeBridge())
     win.home.refresh_texts()

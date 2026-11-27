@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![版本](https://img.shields.io/badge/version-1.3.6-blue)
+![版本](https://img.shields.io/badge/version-1.3.7-blue)
 [![许可证: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![平台](https://img.shields.io/badge/platform-windows-blue)
@@ -58,7 +58,7 @@ Excel 新手快速编写常用内部公式和（规划中）VBA 宏：
 
 ## 功能特性
 
-### 公式引擎（v1.3.6 — 5 个核心公式）
+### 公式引擎（v1.3.7 — 5 个核心公式）
 
 每个公式都自带完整的 **引导 → 生成 → 诊断** 流水线：
 
@@ -191,7 +191,17 @@ MIT — 详见 [LICENSE](./LICENSE)
 <a id="版本更迭"></a>
 ## 版本更迭
 
-### 最新 — v1.3.6（2026-11-27）
+### 最新 — v1.3.7（2026-11-27）
+
+- **修复：卡片第一行顶部被裁、两行看起来压在一起。** 列表行的样式里还留着
+  `padding: 6px`，卡片实际拿到的矩形比代码预留的高度少 12px（宽度也少 12px），
+  Qt 于是把文字标签压到最小高度以下，粗体标题的上缘就被切掉了。现在去掉行的
+  padding，行高改为 `max(heightForWidth, minimumSizeHint) + 4`。
+- 第一行字号回到 12px（v1.3.5 曾把它加到 13px）。
+- 新增回归测试 `test_card_text_is_never_squeezed`：在 320×420 下渲染首页，断言
+  卡片和文字标签都不会小于自身最小高度。
+
+### v1.3.6（2026-11-27）
 
 - **修复公式卡片内两行文字挤在一起的问题**：加粗标题与下面的示例公式原来只隔
   1px。现在行间距 5px，标题下方再加 3px 内边距，两行层次分明。

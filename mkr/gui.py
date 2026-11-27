@@ -234,7 +234,7 @@ def _rebuild_style() -> None:
     Style.LABEL_WARN = f"color: {_WARN}; font-size: 11px; padding: 1px 2px;"
     Style.LIST = f"""
         QListWidget {{ background: {_BG}; border: none; outline: none; }}
-        QListWidget::item {{ background: {_BG_CARD}; border-radius: 8px; padding: 6px; margin: 2px 0; }}
+        QListWidget::item {{ background: {_BG_CARD}; border-radius: 8px; margin: 2px 0; }}
         QListWidget::item:hover {{ background: {_ACCENT}; color: white; }}
         QListWidget::item:selected {{ background: {_ACCENT_HOVER}; color: white; }}
     """
@@ -356,9 +356,10 @@ class HomeScreen(QWidget):
         the list scrolling vertically only.
         """
         width = max(120, self.list_widget.viewport().width())
-        height = card.heightForWidth(width)
-        if height <= 0:
-            height = card.sizeHint().height()
+        # Same rule as _refit_cards: never hand the card less than its layout
+        # minimum, otherwise the labels get squeezed and the headline is
+        # clipped at the top.
+        height = max(card.heightForWidth(width), card.minimumSizeHint().height()) + 4
         item.setSizeHint(QSize(width, height))
 
     def _refit_cards(self) -> None:
@@ -373,14 +374,14 @@ class HomeScreen(QWidget):
         width = max(120, self.list_widget.viewport().width())
         heights: list[int] = []
         for _, card in rows:
-            h = card.heightForWidth(width)
-            if h <= 0:
-                h = card.sizeHint().height()
-            heights.append(h)
-        # With the description paragraphs gone the cards are short, which left
-        # a big empty block under the list.  Share the leftover height between
-        # the rows (capped) so the headline row gets the breathing room.
-        spare = self.list_widget.viewport().height() - sum(heights) - 4 * len(rows)
+            # Never go below the layout minimum: giving the card less than it
+            # needs squeezes the labels and clips the top of the bold headline
+            # (that was the "pressed together" look reported in v1.3.6).
+            h = max(card.heightForWidth(width), card.minimumSizeHint().height())
+            heights.append(h + 4)  # + the item's 2px top/bottom margin
+        # Share any leftover height between the rows (capped) so the headline
+        # row gets the breathing room and the list has no empty block below.
+        spare = self.list_widget.viewport().height() - sum(heights)
         grow = min(spare // len(rows), 30) if spare > 0 else 0
         for (item, _), h in zip(rows, heights):
             item.setSizeHint(QSize(width, h + grow))
@@ -431,7 +432,7 @@ def _build_card(f: FormulaBase, lang: str) -> QWidget:
     title = QLabel(f.zh_name if lang == "zh" else f.en_name)
     title.setStyleSheet(
         f"background: transparent; color: {_TEXT}; font-weight: bold; "
-        f"font-size: 13px; padding-bottom: 3px;"
+        f"font-size: 12px; padding-bottom: 2px;"
     )
     # Let the mouse fall through to the card, so the whole card gets :hover
     # instead of the individual line under the cursor.

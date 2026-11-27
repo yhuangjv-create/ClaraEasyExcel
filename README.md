@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.3.6-blue)
+![Version](https://img.shields.io/badge/version-1.3.7-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.3.6 — 5 core formulas)
+### Formula engine (v1.3.7 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -195,7 +195,19 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.3.6 (2026-11-27)
+### Latest — v1.3.7 (2026-11-27)
+
+- **Fixed: the card headline was clipped at the top and the two lines looked
+  pressed together.**  The list row style still carried `padding: 6px`, so the
+  card widget received a rect 12 px shorter (and narrower) than the height the
+  code had reserved — Qt then squeezed the labels below their minimum and cut
+  the top of the bold text.  The item padding is gone, and rows are now sized
+  from `max(heightForWidth, minimumSizeHint) + 4`.
+- Headline font is back to 12 px (v1.3.5 had bumped it to 13 px).
+- New regression test `test_card_text_is_never_squeezed` renders the home
+  screen at 320×420 and asserts no card or label is smaller than its minimum.
+
+### v1.3.6 (2026-11-27)
 
 - **Fixed the cramped line spacing inside a formula card**: the bold headline
   and the example below it were glued together.  Row spacing is now 5 px plus
