@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![版本](https://img.shields.io/badge/version-1.3.5-blue)
+![版本](https://img.shields.io/badge/version-1.3.6-blue)
 [![许可证: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![平台](https://img.shields.io/badge/platform-windows-blue)
@@ -58,7 +58,7 @@ Excel 新手快速编写常用内部公式和（规划中）VBA 宏：
 
 ## 功能特性
 
-### 公式引擎（v1.3.5 — 5 个核心公式）
+### 公式引擎（v1.3.6 — 5 个核心公式）
 
 每个公式都自带完整的 **引导 → 生成 → 诊断** 流水线：
 
@@ -191,7 +191,12 @@ MIT — 详见 [LICENSE](./LICENSE)
 <a id="版本更迭"></a>
 ## 版本更迭
 
-### 最新 — v1.3.5（2026-11-27）
+### 最新 — v1.3.6（2026-11-27）
+
+- **修复公式卡片内两行文字挤在一起的问题**：加粗标题与下面的示例公式原来只隔
+  1px。现在行间距 5px，标题下方再加 3px 内边距，两行层次分明。
+
+### v1.3.5（2026-11-27）
 
 - **公式卡片不再显示下面的说明段落。** 每张卡片现在只有标题行——公式名 + 一句
   简要说明（如 `VLOOKUP 条件查找`）——加上示例公式。省出来的高度给了这一行和行间

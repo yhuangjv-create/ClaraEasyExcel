@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.3.5-blue)
+![Version](https://img.shields.io/badge/version-1.3.6-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.3.5 — 5 core formulas)
+### Formula engine (v1.3.6 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -195,7 +195,13 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.3.5 (2026-11-27)
+### Latest — v1.3.6 (2026-11-27)
+
+- **Fixed the cramped line spacing inside a formula card**: the bold headline
+  and the example below it were glued together.  Row spacing is now 5 px plus
+  3 px padding under the headline, so the two lines read as separate items.
+
+### v1.3.5 (2026-11-27)
 
 - **Formula cards no longer carry a description paragraph.**  Each card is now
   just the headline — formula name plus its one-line summary, e.g.

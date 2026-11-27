@@ -418,7 +418,9 @@ def _build_card(f: FormulaBase, lang: str) -> QWidget:
     )
     v = QVBoxLayout(card)
     v.setContentsMargins(8, 5, 8, 5)
-    v.setSpacing(1)
+    # Breathing room between the bold headline and the mono example — at 1px
+    # the 13px Chinese glyphs and the 11px code line looked glued together.
+    v.setSpacing(5)
     # Rows may be given extra height by _refit_cards — keep the two lines
     # together and centre that block instead of stretching a single line.
     v.addStretch(1)
@@ -428,7 +430,8 @@ def _build_card(f: FormulaBase, lang: str) -> QWidget:
     # the freed room goes to this row.
     title = QLabel(f.zh_name if lang == "zh" else f.en_name)
     title.setStyleSheet(
-        f"background: transparent; color: {_TEXT}; font-weight: bold; font-size: 13px;"
+        f"background: transparent; color: {_TEXT}; font-weight: bold; "
+        f"font-size: 13px; padding-bottom: 3px;"
     )
     # Let the mouse fall through to the card, so the whole card gets :hover
     # instead of the individual line under the cursor.
