@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.3.7-blue)
+![Version](https://img.shields.io/badge/version-1.3.8-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.3.7 — 5 core formulas)
+### Formula engine (v1.3.8 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -195,7 +195,13 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.3.7 (2026-11-27)
+### Latest — v1.3.8 (2026-11-27)
+
+- **Title bar now reads just `ClaraEasyExcel`.**  The “— Excel 智能助手 vX.Y.Z”
+  suffix was cut off in the compact window anyway, so the em-dash and
+  everything after it were removed.
+
+### v1.3.7 (2026-11-27)
 
 - **Fixed: the card headline was clipped at the top and the two lines looked
   pressed together.**  The list row style still carried `padding: 6px`, so the

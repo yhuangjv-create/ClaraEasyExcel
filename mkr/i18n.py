@@ -7,8 +7,8 @@ Missing keys fall back to the zh value, then to the key itself.
 _TRANSLATIONS: dict[str, dict[str, str]] = {
     # ---------- GUI chrome ----------
     "app_title": {
-        "zh": "ClaraEasyExcel — Excel 智能助手 v{ver}",
-        "en": "ClaraEasyExcel — Smart Excel Sidecar v{ver}",
+        "zh": "ClaraEasyExcel",
+        "en": "ClaraEasyExcel",
     },
     "btn_lang_zh": {"zh": "中文", "en": "中文"},
     "btn_lang_en": {"zh": "English", "en": "English"},

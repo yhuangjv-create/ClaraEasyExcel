@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![版本](https://img.shields.io/badge/version-1.3.7-blue)
+![版本](https://img.shields.io/badge/version-1.3.8-blue)
 [![许可证: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![平台](https://img.shields.io/badge/platform-windows-blue)
@@ -58,7 +58,7 @@ Excel 新手快速编写常用内部公式和（规划中）VBA 宏：
 
 ## 功能特性
 
-### 公式引擎（v1.3.7 — 5 个核心公式）
+### 公式引擎（v1.3.8 — 5 个核心公式）
 
 每个公式都自带完整的 **引导 → 生成 → 诊断** 流水线：
 
@@ -191,7 +191,12 @@ MIT — 详见 [LICENSE](./LICENSE)
 <a id="版本更迭"></a>
 ## 版本更迭
 
-### 最新 — v1.3.7（2026-11-27）
+### 最新 — v1.3.8（2026-11-27）
+
+- **左上角标题只保留 `ClaraEasyExcel`。** 后面的"— Excel 智能助手 vX.Y.Z"在紧凑
+  窗口里本来就被截断了，现在连横线一起删除。
+
+### v1.3.7（2026-11-27）
 
 - **修复：卡片第一行顶部被裁、两行看起来压在一起。** 列表行的样式里还留着
   `padding: 6px`，卡片实际拿到的矩形比代码预留的高度少 12px（宽度也少 12px），
