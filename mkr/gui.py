@@ -10,7 +10,7 @@ import sys
 from typing import Any
 
 from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QGuiApplication
+from PySide6.QtGui import QBrush, QColor, QGuiApplication, QLinearGradient, QPainter, QPen
 from PySide6.QtWidgets import (
     QApplication,
     QColorDialog,
@@ -1036,6 +1036,44 @@ class PreviewScreen(QWidget):
 # ==========================================================================
 # Main window — borderless, draggable, always on top, with custom title bar
 # ==========================================================================
+def _status_gradient(x0: float, x1: float) -> QLinearGradient:
+    """Three-stop gradient for the status line, tuned per theme brightness."""
+    grad = QLinearGradient(x0, 0.0, x1, 0.0)
+    if QColor(_BG).lightness() > 150:  # light theme → deep inks stay readable
+        stops = ((0.0, "#B45309"), (0.45, "#111827"), (1.0, "#0E7490"))
+    else:  # dark theme → warm gold into ice blue
+        stops = ((0.0, "#FFD479"), (0.45, "#FFFFFF"), (1.0, "#8BE9FD"))
+    for pos, color in stops:
+        grad.setColorAt(pos, QColor(color))
+    return grad
+
+
+class StatusLabel(QLabel):
+    """Status text filled with a soft gradient instead of one flat colour.
+
+    A QLabel can only paint a solid `color`, so the text is drawn here with a
+    gradient pen (gold → white → ice blue on the default dark theme).  Font,
+    padding and size still come from the stylesheet.
+    """
+
+    def paintEvent(self, event) -> None:  # Qt override
+        text = self.text()
+        if not text:
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+        painter.setFont(self.font())
+        fm = painter.fontMetrics()
+        rect = self.contentsRect()
+        shown = fm.elidedText(text, Qt.TextElideMode.ElideRight, rect.width())
+        # Fit the gradient to the glyphs, not to the empty space on the right.
+        width = max(1, fm.horizontalAdvance(shown))
+        grad = _status_gradient(rect.left(), rect.left() + width)
+        painter.setPen(QPen(QBrush(grad), 1))
+        painter.drawText(rect, self.alignment(), shown)
+        painter.end()
+
+
 class SidecarWindow(QWidget):
     def __init__(self, bridge: ExcelComBridge) -> None:
         super().__init__()
@@ -1109,7 +1147,7 @@ class SidecarWindow(QWidget):
         v.addWidget(self.stack, stretch=1)
 
         # status bar
-        self.status = QLabel()
+        self.status = StatusLabel()
         self.status.setStyleSheet(Style.STATUS)
         # Subtle "breathing" pulse so the live status reads as alive without a
         # hard on/off blink.  QLabel has no opacity property, hence the effect.

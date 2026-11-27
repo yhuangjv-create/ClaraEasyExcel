@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![版本](https://img.shields.io/badge/version-1.3.9-blue)
+![版本](https://img.shields.io/badge/version-1.3.10-blue)
 [![许可证: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![平台](https://img.shields.io/badge/platform-windows-blue)
@@ -58,7 +58,7 @@ Excel 新手快速编写常用内部公式和（规划中）VBA 宏：
 
 ## 功能特性
 
-### 公式引擎（v1.3.9 — 5 个核心公式）
+### 公式引擎（v1.3.10 — 5 个核心公式）
 
 每个公式都自带完整的 **引导 → 生成 → 诊断** 流水线：
 
@@ -191,7 +191,14 @@ MIT — 详见 [LICENSE](./LICENSE)
 <a id="版本更迭"></a>
 ## 版本更迭
 
-### 最新 — v1.3.9（2026-11-27）
+### 最新 — v1.3.10（2026-11-27）
+
+- **状态栏文字改为三段渐变**，不再是单一颜色：金黄 → 白 → 冰蓝横贯文字，在紫色
+  背景上更醒目，同时保留呼吸式闪烁。`QLabel` 只能绘制纯色，因此由
+  `StatusLabel.paintEvent` 用渐变画笔绘制文字，且渐变按文字实际宽度铺开（不会浪费
+  在右侧空白上）。浅色主题下自动换成深琥珀 → 近黑 → 深青，保证对比度。
+
+### v1.3.9（2026-11-27）
 
 - **左下角的状态文字改为"呼吸式"闪烁**：透明度在 1.0 与 0.45 之间以 2.6 秒周期、
   InOutSine 曲线缓慢起伏，比生硬的开关式闪烁更有质感。`QLabel` 本身没有透明度

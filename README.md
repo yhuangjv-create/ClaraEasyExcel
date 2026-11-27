@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.3.9-blue)
+![Version](https://img.shields.io/badge/version-1.3.10-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.3.9 — 5 core formulas)
+### Formula engine (v1.3.10 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -195,7 +195,17 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.3.9 (2026-11-27)
+### Latest — v1.3.10 (2026-11-27)
+
+- **The status line is now painted with a three-stop gradient** instead of one
+  flat colour: warm gold → white → ice blue across the text, which makes it
+  stand out from the purple surface while the breathing pulse keeps running.
+  A `QLabel` can only draw a solid `color`, so `StatusLabel.paintEvent` draws
+  the text with a gradient pen; the gradient spans the glyphs, not the empty
+  space to their right.  On a light theme the stops switch to deep amber →
+  near-black → teal so contrast stays intact.
+
+### v1.3.9 (2026-11-27)
 
 - **The bottom-left status line now “breathes”** instead of sitting still: a
   slow opacity pulse (1.0 → 0.45 → 1.0 over 2.6 s with an InOutSine curve) makes

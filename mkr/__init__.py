@@ -1,3 +1,3 @@
 """ClaraEasyExcel — a float-sidecar Excel assistant."""
 
-__version__ = "1.3.9"
+__version__ = "1.3.10"

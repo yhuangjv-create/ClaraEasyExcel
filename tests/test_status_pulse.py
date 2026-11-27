@@ -1,8 +1,10 @@
-"""Regression: the bottom-left status line breathes instead of hard-blinking.
+"""Regression: the bottom-left status line breathes and is painted with a gradient.
 
 v1.3.9 replaced a static status label with a slow opacity pulse
 (1.0 → 0.45 → 1.0 over 2.6 s, InOutSine).  A QLabel has no opacity property,
 so the pulse runs on a QGraphicsOpacityEffect attached to the label.
+v1.3.10 swapped the flat colour for a gold → white → ice-blue gradient, drawn
+by `StatusLabel.paintEvent`.
 """
 
 import os
@@ -13,7 +15,7 @@ import pytest
 from PySide6.QtCore import QAbstractAnimation
 from PySide6.QtWidgets import QApplication, QGraphicsOpacityEffect
 
-from mkr.gui import SidecarWindow
+from mkr.gui import SidecarWindow, StatusLabel, _status_gradient
 
 
 class FakeBridge:
@@ -40,4 +42,15 @@ def test_status_label_pulses(app):
     assert anim.loopCount() == -1
     assert anim.duration() == 2600
     assert fx.opacity() <= 1.0
+    win.close()
+
+
+def test_status_text_is_gradient_filled(app):
+    win = SidecarWindow(FakeBridge())
+    assert isinstance(win.status, StatusLabel)
+
+    stops = _status_gradient(0, 100).stops()
+    assert len(stops) == 3
+    # three distinct colours: gold → white → ice blue on the dark theme
+    assert len({color.name() for _, color in stops}) == 3
     win.close()
