@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![版本](https://img.shields.io/badge/version-1.1.0-blue)
+![版本](https://img.shields.io/badge/version-1.1.1-blue)
 [![许可证: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![平台](https://img.shields.io/badge/platform-windows-blue)
@@ -58,7 +58,7 @@ Excel 新手快速编写常用内部公式和（规划中）VBA 宏：
 
 ## 功能特性
 
-### 公式引擎（v1.1.0 — 5 个核心公式）
+### 公式引擎（v1.1.1 — 5 个核心公式）
 
 每个公式都自带完整的 **引导 → 生成 → 诊断** 流水线：
 
@@ -190,7 +190,14 @@ MIT — 详见 [LICENSE](./LICENSE)
 <a id="版本更迭"></a>
 ## 版本更迭
 
-### 最新 — v1.1.0（2026-11-27）
+### 最新 — v1.1.1（2026-11-27）
+
+- **界面配色**：窗口底色改为 Windows 11 自带的**「深橙黄色」**（`#F7630C`）；
+  卡片、输入框、公式预览框与次要按钮边框统一改为暖调奶油底 + 深墨色文字，
+  窗体描边使用浅奶油色 —— 在明亮暖色底上依然清晰可读。
+- 依旧**全面无绿**（离屏渲染 + 逐像素扫描验证）。
+
+### v1.1.0（2026-11-27）
 
 - **界面配色**：整体底色改为 Windows 11 自带的**「鸢尾花色」**（`#8764B8`）；
   卡片、输入框与公式预览框使用更深一层的鸢尾紫，层次分明、文字清晰。

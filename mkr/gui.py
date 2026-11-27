@@ -33,17 +33,17 @@ from mkr.formulas.base import FormulaBase, all_formula_names, get_formula
 from mkr.i18n import tr
 from mkr.intent import detect
 
-# ---------- Windows 11 “Iris” (鸢尾花) palette — NO green anywhere ----------
-_BG = "#8764B8"        # window base — Win11 built-in accent “Iris”
-_BG_CARD = "#7A55A9"   # card bg — deeper iris so light text stays readable
-_BG_DEEP = "#4E3374"   # inputs / preview boxes — deep iris
-_BORDER = "#C7B0E8"    # light lavender border
-_ACCENT = "#5E3E8C"    # primary button / hover surface
-_ACCENT_HOVER = "#7250A6"
-_TEXT = "#F7F3FE"      # near-white
-_TEXT_DIM = "#E6DBF8"
-_WARN = "#FFCF7A"      # amber — never green
-_OK = "#E9DFFB"
+# ---------- Windows 11 “deep orange-yellow” palette — NO green anywhere ----------
+_BG = "#F7630C"        # window base — Win11 deep orange-yellow accent
+_BG_CARD = "#FFF1DE"   # cream card so dark ink text stays readable
+_BG_DEEP = "#FFF8F0"   # inputs / preview boxes
+_BORDER = "#8A3B00"    # burnt-orange border
+_ACCENT = "#8A3B00"    # primary button / selected surface
+_ACCENT_HOVER = "#A64A00"
+_TEXT = "#331A00"      # dark ink
+_TEXT_DIM = "#4A2600"
+_WARN = "#5A0A00"      # deep red-brown — never green
+_OK = "#5C3A14"
 
 
 class Style:
@@ -53,13 +53,13 @@ class Style:
     """
     CARD = f"""
         QFrame {{ background: {_BG_CARD}; border-radius: 10px; padding: 12px; }}
-        QFrame:hover {{ background: {_ACCENT}; }}
+        QFrame:hover {{ background: #FFD9AE; }}
     """
     BTN = f"""
         QPushButton {{ background: {_ACCENT}; color: white; border: none; border-radius: 6px;
                        padding: 6px 14px; font-weight: bold; }}
         QPushButton:hover {{ background: {_ACCENT_HOVER}; }}
-        QPushButton:disabled {{ background: #6B5C80; color: #D8CCEA; }}
+        QPushButton:disabled {{ background: #D9C6B0; color: #8A7460; }}
     """
     BTN_GHOST = f"""
         QPushButton {{ background: transparent; color: {_TEXT}; border: 1px solid {_BORDER};
@@ -69,25 +69,25 @@ class Style:
     BTN_TITLE = f"""
         QPushButton {{ background: transparent; color: {_TEXT_DIM}; border: none; font-size: 16px;
                        padding: 2px 8px; }}
-        QPushButton:hover {{ color: {_TEXT}; background: {_ACCENT_HOVER}; border-radius: 4px; }}
+        QPushButton:hover {{ color: {_TEXT}; background: #FF8A3D; border-radius: 4px; }}
     """
     INPUT = f"""
         QLineEdit, QComboBox, QPlainTextEdit {{
             background: {_BG_DEEP}; border: 1px solid {_BORDER}; border-radius: 6px;
-            color: {_TEXT}; padding: 6px; selection-background-color: {_ACCENT_HOVER};
+            color: {_TEXT}; padding: 6px; selection-background-color: #FFD9AE;
         }}
-        QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus {{ border: 1px solid {_TEXT}; }}
+        QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus {{ border: 1px solid {_ACCENT_HOVER}; }}
     """
     LABEL = f"color: {_TEXT_DIM}; font-size: 12px;"
     LABEL_TITLE = f"color: {_TEXT}; font-size: 16px; font-weight: bold;"
-    LABEL_STEP = f"color: {_ACCENT}; font-size: 14px; font-weight: bold;"
+    LABEL_STEP = f"color: {_TEXT}; font-size: 14px; font-weight: bold;"
     LABEL_TIP = f"color: {_TEXT_DIM}; font-size: 11px; padding: 2px 4px;"
     LABEL_WARN = f"color: {_WARN}; font-size: 11px; padding: 2px 4px;"
     LIST = f"""
         QListWidget {{ background: {_BG}; border: none; outline: none; }}
         QListWidget::item {{ background: {_BG_CARD}; border-radius: 8px; padding: 10px; margin: 3px 0; }}
-        QListWidget::item:hover {{ background: {_ACCENT}; color: white; }}
-        QListWidget::item:selected {{ background: {_ACCENT_HOVER}; color: white; }}
+        QListWidget::item:hover {{ background: #FFE2C4; color: {_TEXT}; }}
+        QListWidget::item:selected {{ background: #FFD0A4; color: {_TEXT}; }}
     """
     PREVIEW_BOX = f"""
         QFrame {{ background: {_BG_DEEP}; border: 1px solid {_BORDER}; border-radius: 8px;
@@ -181,7 +181,7 @@ def _build_card(f: FormulaBase, lang: str) -> QWidget:
     card = QWidget()
     card.setStyleSheet(
         f"QWidget {{ background: {_BG_CARD}; border-radius: 8px; }} "
-        f"QWidget:hover {{ background: {_ACCENT}; }}"
+        "QWidget:hover { background: #FFD9AE; }"
     )
     v = QVBoxLayout(card)
     v.setContentsMargins(10, 8, 10, 8)
@@ -723,7 +723,7 @@ class SidecarWindow(QWidget):
         self.frame.setObjectName("sidecarFrame")
         self.frame.setStyleSheet(
             f"QWidget#sidecarFrame {{ background: {_BG}; border-radius: 12px; "
-            f"border: 1px solid {_BORDER}; }}"
+            f"border: 1px solid #FFD9AE; }}"
         )
         v = QVBoxLayout(self.frame)
         v.setContentsMargins(10, 6, 10, 6)

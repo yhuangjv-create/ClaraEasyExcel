@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.1.0-blue)
+![Version](https://img.shields.io/badge/version-1.1.1-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.1.0 — 5 core formulas)
+### Formula engine (v1.1.1 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -194,7 +194,17 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.1.0 (2026-11-27)
+### Latest — v1.1.1 (2026-11-27)
+
+- **UI theme**: the window background is now Windows 11's built-in
+  **deep orange-yellow** accent (`#F7630C`).  Cards, inputs, the formula
+  preview box and ghost-button borders were re-tuned to warm cream surfaces
+  with dark-ink text, and the frame edge uses a light cream line — the
+  interface stays readable on a bright warm base.
+- Still **no green anywhere** (verified by an offscreen render + per-pixel
+  scan).
+
+### v1.1.0 (2026-11-27)
 
 - **UI theme**: the whole interface now uses Windows 11's built-in **“Iris”**
   accent (`#8764B8`) as its base colour; cards, inputs and the formula
