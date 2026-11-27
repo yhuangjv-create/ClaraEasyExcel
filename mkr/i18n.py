@@ -47,7 +47,7 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
     "wizard_prev": {"zh": "上一步", "en": "Back"},
     "wizard_next": {"zh": "下一步 →", "en": "Next →"},
     "wizard_done": {"zh": "完成填写！预览如下：", "en": "Done! Preview below:"},
-    "wizard_ok": {"zh": "✅ 公式状态：语法正确，无明显错误", "en": "✅ Status: syntax looks fine"},
+    "wizard_ok": {"zh": "✓ 公式状态：语法正确，无明显错误", "en": "✓ Status: syntax looks fine"},
     "wizard_write": {"zh": "写入活动单元格", "en": "Write to active cell"},
     "wizard_copy": {"zh": "复制公式", "en": "Copy formula"},
     "wizard_cancel": {"zh": "取消", "en": "Cancel"},
@@ -77,7 +77,7 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "No new selection detected — click the target cell in Excel first, "
               "then click “Read selected cell”.",
     },
-    "pick_read_now": {"zh": "✅ 读取选中单元格", "en": "✅ Read selected cell"},
+    "pick_read_now": {"zh": "✓ 读取选中单元格", "en": "✓ Read selected cell"},
     "confirm": {"zh": "确认", "en": "Confirm"},
     "cancel": {"zh": "取消", "en": "Cancel"},
 

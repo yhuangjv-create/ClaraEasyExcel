@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.0.9-blue)
+![Version](https://img.shields.io/badge/version-1.1.0-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.0.9 — 5 core formulas)
+### Formula engine (v1.1.0 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -194,7 +194,20 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.0.9 (2026-11-27)
+### Latest — v1.1.0 (2026-11-27)
+
+- **UI theme**: the whole interface now uses Windows 11's built-in **“Iris”**
+  accent (`#8764B8`) as its base colour; cards, inputs and the formula
+  preview box use deeper iris shades so the hierarchy stays readable.
+- **No green anywhere**: every green element is gone — the `✅` emoji in
+  status/button labels was replaced with the text glyph `✓`, which inherits
+  the theme colour.  Verified by rendering the window offscreen and scanning
+  every pixel: **0 green pixels**.
+- Palette tokens in `gui.py` were regrouped into one Iris scale
+  (`_BG` / `_BG_CARD` / `_BG_DEEP` / `_BORDER` / `_ACCENT`), so future theme
+  tweaks stay a one-block edit.
+
+### v1.0.9 (2026-11-27)
 
 - **Fixed**: "Pick cell" (选单元格) in the VLOOKUP wizard could not select a cell and froze the app
   - **Root cause 1 — modal dialog deadlock**: the button opened a **modal
@@ -213,7 +226,7 @@ MIT — see [LICENSE](./LICENSE)
     2. As soon as you click another cell — stable across two polls, so
        drag-selecting a range is not captured mid-drag — the address is
        filled in automatically.
-    3. The button turns into **“✅ Read selected cell”** as a manual
+    3. The button turns into **“✓ Read selected cell”** as a manual
        fallback; after ~30 s with no change a hint asks you to click it.
     4. No `QMessageBox` anywhere in the pick flow and the window is never
        hidden, so nothing can deadlock or disappear.
