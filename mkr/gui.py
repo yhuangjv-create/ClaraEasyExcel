@@ -573,6 +573,9 @@ class WizardScreen(QWidget):
         cfg = Config.get()
         lang = cfg.lang
         self.btn_cancel.setText(tr("wizard_cancel", lang=lang))
+        # The back button sits left of “Next”; it must always be labelled —
+        # it was created and wired but never given text, so it showed blank.
+        self.btn_prev.setText(tr("wizard_prev", lang=lang))
         self._update_pick_buttons()
 
     def _current_value(self) -> str:

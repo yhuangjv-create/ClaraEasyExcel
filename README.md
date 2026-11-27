@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.3.1-blue)
+![Version](https://img.shields.io/badge/version-1.3.2-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.3.1 — 5 core formulas)
+### Formula engine (v1.3.2 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -195,7 +195,15 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.3.1 (2026-11-27)
+### Latest — v1.3.2 (2026-11-27)
+
+- **Fixed: the button left of “Next” was blank.**  `btn_prev` was created and
+  wired to the back handler, but `_refresh_static_texts()` never set its label,
+  so the wizard showed an empty ghost button beside “Next”.  It now always
+  reads **Back / 上一步**, including after a language switch.
+- Regression test added in `tests/test_wizard_flow.py`.
+
+### v1.3.1 (2026-11-27)
 
 - **Fixed: you can now pick a range on any worksheet, and drag as long as you
   like.** Reported on 国开行转账明细.xlsx, step 2 (框选区域, target B:D on

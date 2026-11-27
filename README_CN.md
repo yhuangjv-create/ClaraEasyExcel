@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![版本](https://img.shields.io/badge/version-1.3.1-blue)
+![版本](https://img.shields.io/badge/version-1.3.2-blue)
 [![许可证: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![平台](https://img.shields.io/badge/platform-windows-blue)
@@ -58,7 +58,7 @@ Excel 新手快速编写常用内部公式和（规划中）VBA 宏：
 
 ## 功能特性
 
-### 公式引擎（v1.3.1 — 5 个核心公式）
+### 公式引擎（v1.3.2 — 5 个核心公式）
 
 每个公式都自带完整的 **引导 → 生成 → 诊断** 流水线：
 
@@ -191,7 +191,14 @@ MIT — 详见 [LICENSE](./LICENSE)
 <a id="版本更迭"></a>
 ## 版本更迭
 
-### 最新 — v1.3.1（2026-11-27）
+### 最新 — v1.3.2（2026-11-27）
+
+- **修复：「下一步」左边的按钮是空白的。** `btn_prev` 虽然创建了、也绑定了返回
+  的处理函数，但 `_refresh_static_texts()` 从未给它设置文字，所以「下一步」旁边
+  显示的是一个没有字的按钮。现在它始终显示 **上一步 / Back**，切换语言后也正确。
+- 新增回归测试：`tests/test_wizard_flow.py`。
+
+### v1.3.1（2026-11-27）
 
 - **修复：可以框选任意工作表的区域，且想拖多久就拖多久。** 以
   国开行转账明细.xlsx 第 2 步（框选区域，目标是 Sheet2 的 B:D 列）为例：
