@@ -382,8 +382,9 @@ class WizardScreen(QWidget):
         self._pick_base: str | None = None   # selection when pick mode started
         self._pick_last: str | None = None   # previous poll result (debounce)
         self._pick_ticks = 0
+        self._pick_minimized = False  # did we minimise the window for pick mode?
         self._pick_timer = QTimer(self)
-        self._pick_timer.setInterval(500)
+        self._pick_timer.setInterval(200)  # 200 ms → a click is captured in ~400 ms
         self._pick_timer.timeout.connect(self._poll_pick)
         self._build_ui()
 
@@ -593,22 +594,26 @@ class WizardScreen(QWidget):
         self.next_ready.emit()
 
     def _pick_from_excel(self, mode: str) -> None:
-        """Live, non-blocking cell pick.
+        """Live, non-blocking cell pick — one selection in Excel confirms it.
 
-        Why this shape (the old version could not pick and froze the app):
-          * It opened a **modal QMessageBox** on top of an always-on-top,
-            frameless window.  The modal dialog spawned a nested Qt event
-            loop, covered Excel so the user could not click a cell, and on
-            close immediately fired a COM read while that loop was unwinding
-            — deadlocking the UI thread.
-          * It also used showMinimized().  Our window is a Qt.Tool window,
-            which has **no taskbar button**, so once minimised the user had
-            no way to bring it back — the app looked dead.
+        Flow:
+          1. Click “Pick cell / Pick range” → we **minimise the sidecar** so
+             Excel is fully in front and clickable, and start a 200 ms poll.
+          2. As soon as the user clicks / drag-selects a *different* selection
+             that is stable for two polls (~400 ms, so a drag is captured only
+             after it ends) the address is filled in **automatically** and the
+             window pops back to the front — no need to switch back and click
+             “confirm”.
+          3. The button doubles as a manual “read now” fallback (used when the
+             poll times out, e.g. the user wants the cell that was already
+             selected when pick mode started).
 
-        New flow: the window stays put.  A QTimer polls Excel's selection
-        every 500 ms; as soon as the user clicks a different cell (stable for
-        two polls, so drag-selecting a range works) the address is filled in
-        automatically.  The button doubles as a manual "read now" fallback.
+        Why minimise instead of staying on top: an always-on-top frameless
+        window physically sits over Excel and intercepts the click, so the user
+        used to have to drag it aside and then click back to confirm.
+        Minimising is safe now (the Qt.Tool flag was removed in v1.2.2, so the
+        window has a taskbar button and can always be restored) and removes
+        that friction entirely.
         """
         cfg = Config.get()
         lang = cfg.lang
@@ -631,7 +636,27 @@ class WizardScreen(QWidget):
         self._pick_ticks = 0
         self._update_pick_buttons()
         self.warn_label.setText(tr("pick_mode_active", lang=lang))
+        # Get the sidecar out of the way so Excel receives the click cleanly.
+        self._minimise_for_pick()
         self._pick_timer.start()
+
+    def _minimise_for_pick(self) -> None:
+        win = self.window()
+        if win is not None and not win.isMinimized():
+            self._pick_minimized = True
+            win.showMinimized()
+
+    def _restore_window(self) -> None:
+        """Bring the sidecar back after pick mode (no-op if we did not minimise)."""
+        if not self._pick_minimized:
+            return
+        self._pick_minimized = False
+        win = self.window()
+        if win is None:
+            return
+        win.showNormal()
+        win.raise_()
+        win.activateWindow()
 
     def _read_pick_result(self, lang: str) -> None:
         """Read Excel's current selection once and fill it in."""
@@ -654,8 +679,14 @@ class WizardScreen(QWidget):
             self.cancel_pick()
             return
         self._pick_ticks += 1
-        if self._pick_ticks > 60:  # ~30 s
-            self.cancel_pick()
+        if self._pick_ticks > 100:  # 100 * 200 ms = 20 s
+            # Timed out: pop the window back but STAY in pick mode, so the
+            # user can click “Read selected cell” to use whatever is currently
+            # selected (covers the “pick the cell that was already active” case).
+            self._pick_timer.stop()
+            self._restore_window()
+            self._pick_awaiting = True
+            self._update_pick_buttons()
             self.warn_label.setText(tr("pick_no_change", lang=lang))
             return
 
@@ -676,14 +707,15 @@ class WizardScreen(QWidget):
         self._pick_last = addr
 
     def _apply_pick(self, addr: str) -> None:
-        self.cancel_pick()
+        self.cancel_pick()  # stops the timer and restores the window
         self.input_line.setText(addr)
         self.values[self.steps[self.current].key] = addr
         self.warn_label.setText("")
 
     def cancel_pick(self) -> None:
-        """Leave pick mode: stop polling and restore the normal button text."""
+        """Leave pick mode: stop polling and restore the normal window state."""
         self._pick_timer.stop()
+        self._restore_window()
         self._pick_awaiting = False
         self._pick_base = None
         self._pick_last = None

@@ -77,15 +77,16 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
     "copied": {"zh": "已复制到剪贴板 ✓", "en": "Copied to clipboard ✓"},
     "written": {"zh": "已写入活动单元格 ✓", "en": "Written to active cell ✓"},
     "pick_mode_active": {
-        "zh": "取数模式已开启：请直接在 Excel 中点击目标单元格（会自动填入）；"
-              "若未自动填入，可点「读取选中单元格」",
-        "en": "Pick mode on: click the target cell in Excel — it is captured "
-              "automatically. If not, click “Read selected cell”.",
+        "zh": "已进入取数模式：窗口已最小化，请直接在 Excel 中点击或框选目标单元格，"
+              "选中后会自动识别并把窗口弹回，无需回本软件点确认。",
+        "en": "Pick mode on — the window is minimised. Click or drag-select the "
+              "target cell(s) in Excel; the address is captured automatically and "
+              "the window pops back by itself — no need to switch back and confirm.",
     },
     "pick_no_change": {
-        "zh": "未检测到新的选择 — 请先点击 Excel 中的目标单元格，再点「读取选中单元格」",
-        "en": "No new selection detected — click the target cell in Excel first, "
-              "then click “Read selected cell”.",
+        "zh": "未检测到新的选择，窗口已弹回。若要使用当前选中的单元格，可点「读取选中单元格」。",
+        "en": "No new selection detected — the window is back. To use the currently "
+              "selected cell, click “Read selected cell”.",
     },
     "pick_read_now": {"zh": "✓ 读取选中单元格", "en": "✓ Read selected cell"},
     "confirm": {"zh": "确认", "en": "Confirm"},

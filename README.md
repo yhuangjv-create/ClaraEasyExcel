@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.2.3-blue)
+![Version](https://img.shields.io/badge/version-1.3.0-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.2.3 — 5 core formulas)
+### Formula engine (v1.3.0 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -194,7 +194,24 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.2.3 (2026-11-27)
+### Latest — v1.3.0 (2026-11-27)
+
+- **Picking a cell now confirms with a single selection in Excel.** Clicking
+  “Pick cell / Pick range” minimises the sidecar so Excel is fully in front;
+  click or drag-select the target once and the address is filled in
+  automatically (~400 ms) while the window pops back by itself — no more
+  switching back to the software to click “confirm”.
+- Poll interval dropped from 500 ms to 200 ms, and a selection must be stable
+  for two consecutive polls: a single click captures instantly, while a
+  drag-select is captured only after the drag ends (never halfway through).
+- Every cell / range picker in the wizard shares this one-click-to-confirm
+  behaviour.
+- If no new selection is detected within 20 s the window restores itself and
+  stays in pick mode, so “Read selected cell” remains available as a manual
+  fallback (e.g. to pick the cell that was already active when pick mode
+  started).
+
+### v1.2.3 (2026-11-27)
 
 - **Fixed: the wizard jumped several steps at once** (e.g. after filling
   VLOOKUP steps 1-4, going back home and reopening, one “Next” click jumped
