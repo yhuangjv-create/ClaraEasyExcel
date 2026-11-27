@@ -14,6 +14,11 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
     "btn_lang_en": {"zh": "English", "en": "English"},
     "btn_min": {"zh": "—", "en": "—"},
     "btn_close": {"zh": "×", "en": "×"},
+    "btn_theme": {"zh": "主题", "en": "Theme"},
+    "theme_auto": {"zh": "跟随 Windows 主题色", "en": "Follow Windows accent"},
+    "theme_custom": {"zh": "自定义颜色…", "en": "Custom colour…"},
+    "theme_pick_title": {"zh": "选择主界面底色", "en": "Pick the window base colour"},
+    "theme_applied": {"zh": "已应用主题色", "en": "Theme applied"},
 
     # ---------- Home screen ----------
     "home_prompt": {

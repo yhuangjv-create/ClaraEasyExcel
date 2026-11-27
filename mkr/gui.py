@@ -5,19 +5,22 @@ Language button toggles zh/en by mutating Config.lang and calling refresh_texts(
 """
 from __future__ import annotations
 
+import colorsys
 import sys
 from typing import Any
 
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QColor, QGuiApplication
 from PySide6.QtWidgets import (
     QApplication,
+    QColorDialog,
     QComboBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QMessageBox,
     QPushButton,
     QStackedWidget,
@@ -33,67 +36,212 @@ from mkr.formulas.base import FormulaBase, all_formula_names, get_formula
 from mkr.i18n import tr
 from mkr.intent import detect
 
-# ---------- deep purple palette — NO green anywhere ----------
-_BG = "#5C2D91"        # window base — deep purple
-_BG_CARD = "#4E2578"   # card bg — deeper purple so light text stays readable
-_BG_DEEP = "#3A1A5C"   # inputs / preview boxes
-_BORDER = "#C9B6E8"    # light lavender border
-_ACCENT = "#431F66"    # primary button / hover surface
+# ---------- theme palette ------------------------------------------------
+# One base colour drives the whole theme: every surface / text colour is
+# derived from it so contrast stays readable for any user-picked colour.
+_BG = "#5C2D91"
+_BG_CARD = "#4E2578"
+_BG_DEEP = "#3A1A5C"
+_BORDER = "#C9B6E8"
+_ACCENT = "#431F66"
 _ACCENT_HOVER = "#744DA9"
-_TEXT = "#F6F1FD"      # near-white
+_TEXT = "#F6F1FD"
 _TEXT_DIM = "#DCCEF2"
-_WARN = "#FFD27A"      # amber — never green
+_WARN = "#FFD27A"
 _OK = "#E9DFFB"
+
+DEFAULT_BASE = "#5C2D91"
+
+
+def _hex_to_rgb(value: str) -> tuple[int, int, int]:
+    v = value.lstrip("#")
+    if len(v) == 3:
+        v = "".join(ch * 2 for ch in v)
+    return int(v[0:2], 16), int(v[2:4], 16), int(v[4:6], 16)
+
+
+def _rgb_to_hex(rgb) -> str:
+    return "#{:02X}{:02X}{:02X}".format(*(max(0, min(255, round(c))) for c in rgb))
+
+
+def _mix(color_a: str, color_b: str, t: float) -> str:
+    """Linear blend: t=0 → a, t=1 → b."""
+    a, b = _hex_to_rgb(color_a), _hex_to_rgb(color_b)
+    return _rgb_to_hex(tuple(x + (y - x) * t for x, y in zip(a, b)))
+
+
+def _luminance(value: str) -> float:
+    def _ch(raw: int) -> float:
+        c = raw / 255
+        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+    r, g, b = (_ch(c) for c in _hex_to_rgb(value))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _hls(value: str) -> tuple[float, float, float]:
+    r, g, b = _hex_to_rgb(value)
+    return colorsys.rgb_to_hls(r / 255, g / 255, b / 255)
+
+
+def _from_hls(h: float, light: float, sat: float) -> str:
+    return _rgb_to_hex(tuple(c * 255 for c in colorsys.hls_to_rgb(h, light, sat)))
+
+
+def _shift(value: str, lightness: float, saturation: float | None = None) -> str:
+    """Keep the hue, set a new HLS lightness (and optionally saturation)."""
+    h, _, sat = _hls(value)
+    return _from_hls(h, lightness, sat if saturation is None else saturation)
+
+
+def normalize_hex(value: str | None) -> str | None:
+    if not value:
+        return None
+    v = value.strip().lstrip("#")
+    if len(v) == 3:
+        v = "".join(ch * 2 for ch in v)
+    if len(v) != 6:
+        return None
+    try:
+        int(v, 16)
+    except ValueError:
+        return None
+    return "#" + v.upper()
+
+
+def windows_accent_hex() -> str | None:
+    """Windows 10/11 accent colour.  AccentColorMenu stores ABGR."""
+    try:
+        import winreg
+
+        key = r"Software\Microsoft\Windows\CurrentVersion\Explorer\Accent"
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key) as k:
+            val = int(winreg.QueryValueEx(k, "AccentColorMenu")[0])
+        return _rgb_to_hex((val & 0xFF, (val >> 8) & 0xFF, (val >> 16) & 0xFF))
+    except Exception:
+        return None
+
+
+def derive_palette(base: str) -> dict[str, str]:
+    """Derive every theme colour from one base colour.
+
+    Text colour follows WCAG AA: use light text whenever white reaches 4.5:1
+    on the base, otherwise fall back to dark ink on light surfaces.
+    """
+    h, light, sat = _hls(base)
+    lum = _luminance(base)
+    use_light_text = (1.05 / (lum + 0.05)) >= 4.5
+    if use_light_text:  # dark base → light text
+        return {
+            "card": _from_hls(h, max(light - 0.07, 0.05), sat),
+            "deep": _from_hls(h, max(light * 0.62, 0.04), sat),
+            "accent": _from_hls(h, max(light * 0.72, 0.05), min(sat + 0.05, 1)),
+            "accent_hover": _from_hls(h, min(max(light * 1.2, light + 0.06), 0.88), sat),
+            "border": _mix(base, "#FFFFFF", 0.62),
+            "text": _mix(base, "#FFFFFF", 0.92),
+            "text_dim": _mix(base, "#FFFFFF", 0.76),
+            "warn": "#FFD27A",
+        }
+    # light base → dark ink text
+    return {
+        "card": _from_hls(h, 0.94, max(sat * 0.4, 0.05)),
+        "deep": _from_hls(h, 0.97, max(sat * 0.3, 0.04)),
+        "accent": _from_hls(h, min(light * 0.45, 0.30), min(sat * 0.9, 1)),
+        "accent_hover": _from_hls(h, min(light * 0.6, 0.40), min(sat * 0.95, 1)),
+        "border": _from_hls(h, 0.32, min(sat * 0.8, 1)),
+        "text": _mix(base, "#1A1200", 0.90),
+        "text_dim": _mix(base, "#1A1200", 0.74),
+        "warn": "#7A1300",
+    }
 
 
 class Style:
-    """Centralize all QSS strings so changing the palette is one edit."""
-    WINDOW = f"""
+    """QSS strings; values are (re)generated by _rebuild_style()."""
+    WINDOW = ""
+    CARD = ""
+    BTN = ""
+    BTN_GHOST = ""
+    BTN_TITLE = ""
+    INPUT = ""
+    LABEL = ""
+    LABEL_TITLE = ""
+    LABEL_STEP = ""
+    LABEL_TIP = ""
+    LABEL_WARN = ""
+    LIST = ""
+    PREVIEW_BOX = ""
+    STATUS = ""
+
+
+def _rebuild_style() -> None:
+    Style.WINDOW = f"""
         QWidget {{ background: {_BG}; color: {_TEXT}; font-family: "Microsoft YaHei", "Segoe UI"; font-size: 13px; }}
     """
-    CARD = f"""
+    Style.CARD = f"""
         QFrame {{ background: {_BG_CARD}; border-radius: 10px; padding: 12px; }}
         QFrame:hover {{ background: {_ACCENT}; }}
     """
-    BTN = f"""
+    Style.BTN = f"""
         QPushButton {{ background: {_ACCENT}; color: white; border: none; border-radius: 6px;
                        padding: 6px 14px; font-weight: bold; }}
         QPushButton:hover {{ background: {_ACCENT_HOVER}; }}
-        QPushButton:disabled {{ background: #6B5C80; color: #D8CCEA; }}
+        QPushButton:disabled {{ background: {_BORDER}; color: {_TEXT_DIM}; }}
     """
-    BTN_GHOST = f"""
+    Style.BTN_GHOST = f"""
         QPushButton {{ background: transparent; color: {_TEXT}; border: 1px solid {_BORDER};
                        border-radius: 6px; padding: 5px 12px; }}
         QPushButton:hover {{ background: {_ACCENT}; color: white; }}
     """
-    BTN_TITLE = f"""
+    Style.BTN_TITLE = f"""
         QPushButton {{ background: transparent; color: {_TEXT_DIM}; border: none; font-size: 16px;
                        padding: 2px 8px; }}
         QPushButton:hover {{ color: {_TEXT}; background: {_ACCENT_HOVER}; border-radius: 4px; }}
     """
-    INPUT = f"""
+    Style.INPUT = f"""
         QLineEdit, QComboBox, QPlainTextEdit {{
             background: {_BG_DEEP}; border: 1px solid {_BORDER}; border-radius: 6px;
             color: {_TEXT}; padding: 6px; selection-background-color: {_ACCENT_HOVER};
         }}
         QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus {{ border: 1px solid {_ACCENT_HOVER}; }}
     """
-    LABEL = f"color: {_TEXT_DIM}; font-size: 12px;"
-    LABEL_TITLE = f"color: {_TEXT}; font-size: 16px; font-weight: bold;"
-    LABEL_STEP = f"color: {_TEXT}; font-size: 14px; font-weight: bold;"
-    LABEL_TIP = f"color: {_TEXT_DIM}; font-size: 11px; padding: 2px 4px;"
-    LABEL_WARN = f"color: {_WARN}; font-size: 11px; padding: 2px 4px;"
-    LIST = f"""
+    Style.LABEL = f"color: {_TEXT_DIM}; font-size: 12px;"
+    Style.LABEL_TITLE = f"color: {_TEXT}; font-size: 16px; font-weight: bold;"
+    Style.LABEL_STEP = f"color: {_TEXT}; font-size: 14px; font-weight: bold;"
+    Style.LABEL_TIP = f"color: {_TEXT_DIM}; font-size: 11px; padding: 2px 4px;"
+    Style.LABEL_WARN = f"color: {_WARN}; font-size: 11px; padding: 2px 4px;"
+    Style.LIST = f"""
         QListWidget {{ background: {_BG}; border: none; outline: none; }}
         QListWidget::item {{ background: {_BG_CARD}; border-radius: 8px; padding: 10px; margin: 3px 0; }}
         QListWidget::item:hover {{ background: {_ACCENT}; color: white; }}
         QListWidget::item:selected {{ background: {_ACCENT_HOVER}; color: white; }}
     """
-    PREVIEW_BOX = f"""
+    Style.PREVIEW_BOX = f"""
         QFrame {{ background: {_BG_DEEP}; border: 1px solid {_BORDER}; border-radius: 8px;
                   padding: 10px; font-family: "Consolas", "Courier New"; font-size: 13px; color: {_TEXT}; }}
     """
-    STATUS = f"color: {_TEXT_DIM}; font-size: 11px;"
+    Style.STATUS = f"color: {_TEXT_DIM}; font-size: 11px;"
+
+
+def set_base_color(base: str | None = None) -> str:
+    """Rebuild the whole palette from `base` (None → Windows accent colour)."""
+    global _BG, _BG_CARD, _BG_DEEP, _BORDER, _ACCENT, _ACCENT_HOVER, _TEXT, _TEXT_DIM, _WARN, _OK
+    chosen = normalize_hex(base) or windows_accent_hex() or DEFAULT_BASE
+    pal = derive_palette(chosen)
+    _BG = chosen
+    _BG_CARD = pal["card"]
+    _BG_DEEP = pal["deep"]
+    _BORDER = pal["border"]
+    _ACCENT = pal["accent"]
+    _ACCENT_HOVER = pal["accent_hover"]
+    _TEXT = pal["text"]
+    _TEXT_DIM = pal["text_dim"]
+    _WARN = pal["warn"]
+    _OK = pal["text_dim"]
+    _rebuild_style()
+    return chosen
+
+
+_rebuild_style()
 
 
 # ==========================================================================
@@ -175,6 +323,13 @@ class HomeScreen(QWidget):
         name = item.data(Qt.ItemDataRole.UserRole)
         if name:
             self.open_wizard.emit(name)
+
+    def apply_style(self) -> None:
+        """Re-apply every widget-level stylesheet after a theme change."""
+        self.prompt_label.setStyleSheet(Style.LABEL_TITLE)
+        self.search.setStyleSheet(Style.INPUT)
+        self.recom_head.setStyleSheet(Style.LABEL)
+        self.list_widget.setStyleSheet(Style.LIST)
 
 
 def _build_card(f: FormulaBase, lang: str) -> QWidget:
@@ -540,6 +695,22 @@ class WizardScreen(QWidget):
             self.btn_pick_cell.setText(tr("wizard_pick_cell", lang=lang))
             self.btn_pick_range.setText(tr("wizard_pick_range", lang=lang))
 
+    def apply_style(self) -> None:
+        """Re-apply every widget-level stylesheet after a theme change."""
+        self.step_title.setStyleSheet(Style.LABEL_STEP)
+        self.zh_label.setStyleSheet(Style.LABEL)
+        self.en_label.setStyleSheet(Style.LABEL)
+        self.input_line.setStyleSheet(Style.INPUT)
+        self.input_combo.setStyleSheet(Style.INPUT)
+        self.btn_pick_cell.setStyleSheet(Style.BTN_GHOST)
+        self.btn_pick_range.setStyleSheet(Style.BTN_GHOST)
+        self.hint_label.setStyleSheet(Style.LABEL_TIP)
+        self.warn_label.setStyleSheet(Style.LABEL_WARN)
+        self.tips_label.setStyleSheet(Style.LABEL_TIP)
+        self.btn_cancel.setStyleSheet(Style.BTN_GHOST)
+        self.btn_prev.setStyleSheet(Style.BTN_GHOST)
+        self.btn_next.setStyleSheet(Style.BTN)
+
     def refresh_texts(self) -> None:
         self._refresh_static_texts()
         if self.formula:
@@ -686,6 +857,18 @@ class PreviewScreen(QWidget):
         if self.diag_fix_btn.isVisible():
             self.diag_fix_btn.setText(tr("diag_fix_action", lang=lang))
 
+    def apply_style(self) -> None:
+        """Re-apply every widget-level stylesheet after a theme change."""
+        self.title.setStyleSheet(Style.LABEL_TITLE)
+        self.preview_box.setStyleSheet(Style.PREVIEW_BOX)
+        self.status_label.setStyleSheet(Style.LABEL)
+        self.diag_head.setStyleSheet(f"color: {_WARN}; font-weight: bold; padding-top: 6px;")
+        self.diag_text.setStyleSheet(Style.LABEL)
+        self.diag_fix_btn.setStyleSheet(Style.BTN_GHOST)
+        self._btn_home_ref.setStyleSheet(Style.BTN_GHOST)
+        self._btn_copy_ref.setStyleSheet(Style.BTN_GHOST)
+        self.btn_write.setStyleSheet(Style.BTN)
+
 
 # ==========================================================================
 # Main window — borderless, draggable, always on top, with custom title bar
@@ -735,6 +918,11 @@ class SidecarWindow(QWidget):
         title_label = self.title_label
         title_label.setStyleSheet(f"color: {_TEXT}; font-weight: bold; font-size: 13px; padding: 0 4px;")
         title_row.addWidget(title_label, stretch=1)
+        self.btn_theme = QPushButton()
+        self.btn_theme.setStyleSheet(Style.BTN_TITLE)
+        self.btn_theme.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_theme.clicked.connect(self._show_theme_menu)
+        title_row.addWidget(self.btn_theme)
         self.btn_lang = QPushButton()
         self.btn_lang.setStyleSheet(Style.BTN_TITLE)
         self.btn_lang.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -785,6 +973,7 @@ class SidecarWindow(QWidget):
         lang = cfg.lang
         self.title_label.setText(tr("app_title", lang=lang, ver=__version__))
         self.btn_lang.setText(tr("btn_lang_zh", lang=lang) + " / " + tr("btn_lang_en", lang=lang))
+        self.btn_theme.setText(tr("btn_theme", lang=lang))
         self.btn_min.setText(tr("btn_min", lang=lang))
         self.btn_close.setText(tr("btn_close", lang=lang))
         self.home.refresh_texts()
@@ -802,6 +991,44 @@ class SidecarWindow(QWidget):
             screen = QGuiApplication.primaryScreen().availableGeometry()
             w, h = 420, 600
             self.setGeometry(screen.right() - w - 20, screen.top() + 40, w, h)
+
+    # ---------- theme ----------
+    def _show_theme_menu(self) -> None:
+        cfg = Config.get()
+        lang = cfg.lang
+        menu = QMenu(self)
+        act_auto = menu.addAction(tr("theme_auto", lang=lang))
+        act_auto.setCheckable(True)
+        act_auto.setChecked(cfg.theme == "auto")
+        act_custom = menu.addAction(tr("theme_custom", lang=lang))
+        chosen = menu.exec(self.btn_theme.mapToGlobal(self.btn_theme.rect().bottomLeft()))
+        if chosen is act_auto:
+            cfg.theme = "auto"
+            cfg.save()
+            self._apply_theme()
+        elif chosen is act_custom:
+            color = QColorDialog.getColor(QColor(_BG), self, tr("theme_pick_title", lang=lang))
+            if color.isValid():
+                cfg.theme = color.name().upper()
+                cfg.save()
+                self._apply_theme()
+        if chosen is not None:
+            self.status.setText(tr("theme_applied", lang=cfg.lang))
+
+    def _apply_theme(self) -> None:
+        """Re-derive every colour from the stored base and repaint the UI."""
+        cfg = Config.get()
+        set_base_color(None if cfg.theme == "auto" else cfg.theme)
+        self.setStyleSheet(Style.WINDOW)
+        self.frame.setStyleSheet(
+            f"QWidget#sidecarFrame {{ background: {_BG}; border-radius: 12px; "
+            f"border: 1px solid {_BORDER}; }}"
+        )
+        self.home.apply_style()
+        self.wizard.apply_style()
+        self.preview.apply_style()
+        self.status.setStyleSheet(Style.STATUS)
+        self._refresh_static_texts()  # rebuilds the formula cards in new colours
 
     # ---------- language ----------
     def _toggle_lang(self) -> None:
@@ -904,10 +1131,11 @@ def launch() -> int:
     app.setStyle("Fusion")
 
     bridge = ExcelComBridge()
+    cfg = Config.get()
+    set_base_color(None if cfg.theme == "auto" else cfg.theme)  # before widgets are built
     window = SidecarWindow(bridge)
     window.show()
     bridge.co_init()  # one-time COM apartment init on GUI thread
-    cfg = Config.get()
     if cfg.auto_connect:
         bridge.connect()
         window._refresh_status()

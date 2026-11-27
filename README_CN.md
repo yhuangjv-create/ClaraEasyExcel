@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![版本](https://img.shields.io/badge/version-1.1.2-blue)
+![版本](https://img.shields.io/badge/version-1.2.0-blue)
 [![许可证: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![平台](https://img.shields.io/badge/platform-windows-blue)
@@ -58,7 +58,7 @@ Excel 新手快速编写常用内部公式和（规划中）VBA 宏：
 
 ## 功能特性
 
-### 公式引擎（v1.1.2 — 5 个核心公式）
+### 公式引擎（v1.2.0 — 5 个核心公式）
 
 每个公式都自带完整的 **引导 → 生成 → 诊断** 流水线：
 
@@ -190,7 +190,19 @@ MIT — 详见 [LICENSE](./LICENSE)
 <a id="版本更迭"></a>
 ## 版本更迭
 
-### 最新 — v1.1.2（2026-11-27）
+### 最新 — v1.2.0（2026-11-27）
+
+- **新增：标题栏「主题」按钮**。
+  - **跟随 Windows 主题色**（默认）：从
+    `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent`
+    （`AccentColorMenu`）读取 Win10/11 强调色，窗口自动与系统主题一致。
+  - **自定义颜色…**：打开取色器，整套配色由这一个颜色推导。
+  - 其余颜色（卡片、输入框、公式预览框、描边、按钮、悬停、警告）全部
+    **自动推导**。文字颜色按 WCAG AA 选择：白色在底色上达到 **4.5:1** 才用
+    浅色文字，否则改用浅色卡片 + 深墨文字。
+  - 选择会保存在 `config.json`（`"theme": "auto"` 或 `"#RRGGBB"`）。
+
+### v1.1.2（2026-11-27）
 
 - **界面配色**：窗口底色改为**深紫色**（`#5C2D91`），卡片与输入框使用更深一层的
   紫色（`#4E2578` / `#3A1A5C`），描边为浅薰衣草色，文字为近白色 —— 回到深色底主题，

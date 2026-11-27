@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.1.2-blue)
+![Version](https://img.shields.io/badge/version-1.2.0-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.1.2 — 5 core formulas)
+### Formula engine (v1.2.0 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -194,7 +194,22 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.1.2 (2026-11-27)
+### Latest — v1.2.0 (2026-11-27)
+
+- **New: theme button** in the title bar (“Theme”).
+  - **Follow Windows accent** (default) — reads the Windows 10/11 accent
+    colour from `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent`
+    (`AccentColorMenu`), so the sidecar matches your system theme.
+  - **Custom colour…** — opens a colour picker; the whole palette is then
+    derived from that single colour.
+  - Every other colour (cards, inputs, preview box, borders, buttons, hover,
+    warning) is **auto-derived** from the base.  Text colour follows WCAG AA:
+    light text is used only when white reaches **4.5:1** on the base,
+    otherwise dark ink on light cards.
+  - The choice is persisted in `config.json` (`"theme": "auto"` or
+    `"#RRGGBB"`).
+
+### v1.1.2 (2026-11-27)
 
 - **UI theme**: window background is now **deep purple** (`#5C2D91`), with
   deeper purple cards/inputs (`#4E2578` / `#3A1A5C`), lavender borders and

@@ -23,6 +23,7 @@ class Config:
         self.window_geom: tuple[int, int, int, int] | None = None  # x, y, w, h
         self.recent_formulas: list[str] = []  # formula names recently used
         self.auto_connect: bool = True
+        self.theme: str = "auto"  # "auto" = Windows accent colour, else "#RRGGBB"
 
         self._path = self._resolve_path()
         self.load()
@@ -68,6 +69,7 @@ class Config:
             return
         self.lang = data.get("lang", "zh")
         self.auto_connect = bool(data.get("auto_connect", True))
+        self.theme = str(data.get("theme", "auto"))
         self.recent_formulas = list(data.get("recent_formulas", []))
         geom = data.get("window_geom")
         if isinstance(geom, list) and len(geom) == 4:
@@ -77,6 +79,7 @@ class Config:
         data = {
             "lang": self.lang,
             "auto_connect": self.auto_connect,
+            "theme": self.theme,
             "recent_formulas": self.recent_formulas[-10:],
             "window_geom": list(self.window_geom) if self.window_geom else None,
         }
