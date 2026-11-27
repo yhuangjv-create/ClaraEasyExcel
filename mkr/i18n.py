@@ -67,9 +67,17 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
     "copied": {"zh": "已复制到剪贴板 ✓", "en": "Copied to clipboard ✓"},
     "written": {"zh": "已写入活动单元格 ✓", "en": "Written to active cell ✓"},
     "pick_mode_active": {
-        "zh": "请在 Excel 中选择单元格，然后点击「确认」",
-        "en": "Pick a cell in Excel, then click OK",
+        "zh": "取数模式已开启：请直接在 Excel 中点击目标单元格（会自动填入）；"
+              "若未自动填入，可点「读取选中单元格」",
+        "en": "Pick mode on: click the target cell in Excel — it is captured "
+              "automatically. If not, click “Read selected cell”.",
     },
+    "pick_no_change": {
+        "zh": "未检测到新的选择 — 请先点击 Excel 中的目标单元格，再点「读取选中单元格」",
+        "en": "No new selection detected — click the target cell in Excel first, "
+              "then click “Read selected cell”.",
+    },
+    "pick_read_now": {"zh": "✅ 读取选中单元格", "en": "✅ Read selected cell"},
     "confirm": {"zh": "确认", "en": "Confirm"},
     "cancel": {"zh": "取消", "en": "Cancel"},
 

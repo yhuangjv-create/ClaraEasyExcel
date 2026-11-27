@@ -8,7 +8,7 @@ from __future__ import annotations
 import sys
 from typing import Any
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QApplication,
@@ -217,6 +217,16 @@ class WizardScreen(QWidget):
         self.steps: list[Any] = []  # ArgStep
         self.values: dict[str, str] = {}
         self.current = 0
+        # Live, non-blocking cell picking (see _pick_from_excel):
+        #   _pick_awaiting=True → the poll timer below watches Excel's selection
+        self._pick_awaiting = False
+        self._pick_mode = "cell"
+        self._pick_base: str | None = None   # selection when pick mode started
+        self._pick_last: str | None = None   # previous poll result (debounce)
+        self._pick_ticks = 0
+        self._pick_timer = QTimer(self)
+        self._pick_timer.setInterval(500)
+        self._pick_timer.timeout.connect(self._poll_pick)
         self._build_ui()
 
     def _build_ui(self) -> None:
@@ -348,6 +358,8 @@ class WizardScreen(QWidget):
         else:
             self.input_combo.setVisible(False)
 
+        # reset any pending pick state when moving to a new step
+        self.cancel_pick()
         self.btn_pick_cell.setVisible(step.kind == "cell")
         self.btn_pick_range.setVisible(step.kind == "range")
         self.hint_label.setText(step.zh_hint if lang == "zh" else step.en_hint)
@@ -382,8 +394,7 @@ class WizardScreen(QWidget):
         cfg = Config.get()
         lang = cfg.lang
         self.btn_cancel.setText(tr("wizard_cancel", lang=lang))
-        self.btn_pick_cell.setText(tr("wizard_pick_cell", lang=lang))
-        self.btn_pick_range.setText(tr("wizard_pick_range", lang=lang))
+        self._update_pick_buttons()
 
     def _current_value(self) -> str:
         step = self.steps[self.current]
@@ -421,26 +432,111 @@ class WizardScreen(QWidget):
         self.next_ready.emit()
 
     def _pick_from_excel(self, mode: str) -> None:
+        """Live, non-blocking cell pick.
+
+        Why this shape (the old version could not pick and froze the app):
+          * It opened a **modal QMessageBox** on top of an always-on-top,
+            frameless window.  The modal dialog spawned a nested Qt event
+            loop, covered Excel so the user could not click a cell, and on
+            close immediately fired a COM read while that loop was unwinding
+            — deadlocking the UI thread.
+          * It also used showMinimized().  Our window is a Qt.Tool window,
+            which has **no taskbar button**, so once minimised the user had
+            no way to bring it back — the app looked dead.
+
+        New flow: the window stays put.  A QTimer polls Excel's selection
+        every 500 ms; as soon as the user clicks a different cell (stable for
+        two polls, so drag-selecting a range works) the address is filled in
+        automatically.  The button doubles as a manual "read now" fallback.
+        """
+        cfg = Config.get()
+        lang = cfg.lang
+
+        # ---- manual read (second click, or after the poll timed out) ----
+        if self._pick_awaiting:
+            self._read_pick_result(lang)
+            return
+
+        # ---- enter pick mode ----
         bridge = self.window().bridge  # type: ignore[attr-defined]
         if not bridge.is_connected():
-            cfg = Config.get()
-            QMessageBox.warning(self, tr("diag_title", lang=cfg.lang), tr("diag_conn_fail", lang=cfg.lang))
+            self.warn_label.setText(tr("diag_conn_fail", lang=lang))
             return
-        cfg = Config.get()
-        QMessageBox.information(
-            self,
-            tr("pick_mode_active", lang=cfg.lang),
-            tr("pick_mode_active", lang=cfg.lang)
-            + ("\n(单格 / Single cell)" if mode == "cell" else "\n(区域 / Range)"),
+
+        self._pick_awaiting = True
+        self._pick_mode = mode
+        self._pick_base = bridge.read_selection_address(mode)
+        self._pick_last = None
+        self._pick_ticks = 0
+        self._update_pick_buttons()
+        self.warn_label.setText(tr("pick_mode_active", lang=lang))
+        self._pick_timer.start()
+
+    def _read_pick_result(self, lang: str) -> None:
+        """Read Excel's current selection once and fill it in."""
+        bridge = self.window().bridge  # type: ignore[attr-defined]
+        result = (
+            bridge.get_active_range_address()
+            if self._pick_mode == "range"
+            else bridge.get_active_cell_address()
         )
-        if mode == "range":
-            result = bridge.get_active_range_address()
+        if result.get("ok") and result.get("data"):
+            self._apply_pick(str(result["data"]))
         else:
-            result = bridge.get_active_cell_address()
-        if result.get("ok"):
-            self.input_line.setText(str(result["data"]))
+            self.cancel_pick()
+            self.warn_label.setText(str(result.get("error", tr("diag_conn_fail", lang=lang))))
+
+    def _poll_pick(self) -> None:
+        """QTimer tick: auto-capture when the user selects a new cell."""
+        lang = Config.get().lang
+        if not self.isVisible():
+            self.cancel_pick()
+            return
+        self._pick_ticks += 1
+        if self._pick_ticks > 60:  # ~30 s
+            self.cancel_pick()
+            self.warn_label.setText(tr("pick_no_change", lang=lang))
+            return
+
+        bridge = self.window().bridge  # type: ignore[attr-defined]
+        addr = bridge.read_selection_address(self._pick_mode)
+        if not addr or self._pick_base is None:
+            # no baseline → we cannot tell "new" from "old"; manual read only
+            return
+        # unchanged selection → keep waiting (also covers "pick the same cell")
+        if addr == self._pick_base:
+            self._pick_last = addr
+            return
+        # require the address to be stable across two polls so drag-selecting
+        # a multi-cell range is not captured halfway through the drag
+        if addr == self._pick_last:
+            self._apply_pick(addr)
+            return
+        self._pick_last = addr
+
+    def _apply_pick(self, addr: str) -> None:
+        self.cancel_pick()
+        self.input_line.setText(addr)
+        self.values[self.steps[self.current].key] = addr
+        self.warn_label.setText("")
+
+    def cancel_pick(self) -> None:
+        """Leave pick mode: stop polling and restore the normal button text."""
+        self._pick_timer.stop()
+        self._pick_awaiting = False
+        self._pick_base = None
+        self._pick_last = None
+        self._pick_ticks = 0
+        self._update_pick_buttons()
+
+    def _update_pick_buttons(self) -> None:
+        lang = Config.get().lang
+        if self._pick_awaiting:
+            self.btn_pick_cell.setText(tr("pick_read_now", lang=lang))
+            self.btn_pick_range.setText(tr("pick_read_now", lang=lang))
         else:
-            QMessageBox.warning(self, "Error", str(result.get("error", "Unknown")))
+            self.btn_pick_cell.setText(tr("wizard_pick_cell", lang=lang))
+            self.btn_pick_range.setText(tr("wizard_pick_range", lang=lang))
 
     def refresh_texts(self) -> None:
         self._refresh_static_texts()
@@ -606,10 +702,12 @@ class SidecarWindow(QWidget):
 
     # ---------- window chrome ----------
     def _build_window(self) -> None:
+        # NOTE: no Qt.Tool here.  A tool window gets no taskbar button, so
+        # showMinimized() (title-bar “—”) would hide the app with no way to
+        # bring it back — exactly the “the app just died” report.
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
-            | Qt.WindowType.Tool
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setStyleSheet(Style.WINDOW)
@@ -716,6 +814,7 @@ class SidecarWindow(QWidget):
         self.stack.setCurrentWidget(self.wizard)
 
     def _show_preview(self) -> None:
+        self.wizard.cancel_pick()
         name = self.wizard.formula.name if self.wizard.formula else ""
         body = self.wizard.formula.build(**self.wizard.values) if self.wizard.formula else ""
         Config.get().add_recent(name)
@@ -729,6 +828,7 @@ class SidecarWindow(QWidget):
         self.stack.setCurrentWidget(self.preview)
 
     def _go_home(self) -> None:
+        self.wizard.cancel_pick()
         self.home.search.clear()
         self.home._render_cards("")
         self.stack.setCurrentWidget(self.home)

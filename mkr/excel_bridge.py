@@ -228,6 +228,29 @@ class ExcelComBridge:
 
         return self._with_protection(_work)
 
+    def read_selection_address(self, mode: str = "cell") -> str | None:
+        """Silent address read used by the wizard's live pick polling.
+
+        Deliberately skips _with_protection(): toggling ScreenUpdating /
+        EnableEvents twice a second while the user drags a selection makes
+        Excel flicker and stutter.  Returns None on any failure.
+        """
+        if not self._rebind():
+            return None
+        try:
+            if mode == "range":
+                sel = self._excel.Selection
+                if sel is None:
+                    return None
+                rows = int(sel.Rows.Count)
+                cols = int(sel.Columns.Count)
+                if rows == 1 and cols == 1:
+                    return _a1(sel)
+                return f"{_a1(sel.Cells(1, 1))}:{_a1(sel.Cells(rows, cols))}"
+            return _a1(self._excel.ActiveCell)
+        except Exception:
+            return None
+
     def get_cell_value(self, address: str) -> dict:
         def _work() -> dict:
             ws = self._excel.ActiveSheet

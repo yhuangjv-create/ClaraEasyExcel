@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.0.8-blue)
+![Version](https://img.shields.io/badge/version-1.0.9-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.0.8 — 5 core formulas)
+### Formula engine (v1.0.9 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -194,7 +194,34 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.0.8 (2026-11-26)
+### Latest — v1.0.9 (2026-11-27)
+
+- **Fixed**: "Pick cell" (选单元格) in the VLOOKUP wizard could not select a cell and froze the app
+  - **Root cause 1 — modal dialog deadlock**: the button opened a **modal
+    `QMessageBox`** on an always-on-top, frameless window.  The nested Qt
+    event loop blocked the main window, covered Excel so no cell could be
+    clicked, and on dismissal fired a COM read while that loop was still
+    unwinding — the UI thread deadlocked against Excel.
+  - **Root cause 2 — the window vanished**: the window used `Qt.Tool`, which
+    gets **no taskbar button**.  Any `showMinimized()` (pick mode or the
+    title-bar “—”) hid the app with no way to restore it.
+  - **Fix — live, non-blocking pick (no dialogs, no minimise)**:
+    1. Clicking "Pick cell" enters pick mode; a `QTimer` polls Excel's
+       selection every **500 ms** through a silent COM read
+       (`read_selection_address` — skips the ScreenUpdating/EnableEvents
+       toggling so Excel does not flicker while you drag).
+    2. As soon as you click another cell — stable across two polls, so
+       drag-selecting a range is not captured mid-drag — the address is
+       filled in automatically.
+    3. The button turns into **“✅ Read selected cell”** as a manual
+       fallback; after ~30 s with no change a hint asks you to click it.
+    4. No `QMessageBox` anywhere in the pick flow and the window is never
+       hidden, so nothing can deadlock or disappear.
+  - **Also fixed**: `Qt.Tool` removed from the window flags, so the window
+    now has a taskbar button and the title-bar minimise button is no longer
+    a one-way trip.
+
+### v1.0.8 (2026-11-26)
 
 - **Fixed**: CONCAT / CONCATENATE both appeared as separate cards on the home screen
   - **Root cause**: `concatenate.py` stacked two `@register` decorators — one for
