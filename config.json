@@ -1,6 +1,7 @@
 {
   "lang": "zh",
   "auto_connect": true,
+  "theme": "#5C2D91",
   "recent_formulas": [
     "VLOOKUP",
     "CONCAT"

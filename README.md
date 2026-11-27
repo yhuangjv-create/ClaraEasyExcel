@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.2.0-blue)
+![Version](https://img.shields.io/badge/version-1.2.1-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.2.0 — 5 core formulas)
+### Formula engine (v1.2.1 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -194,7 +194,16 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.2.0 (2026-11-27)
+### Latest — v1.2.1 (2026-11-27)
+
+- **Default colour**: the window now starts on the **deep purple** preset
+  (`#5C2D91`) instead of the Windows accent colour.
+- The theme menu gained a first entry **“Deep purple (default)”**, so the
+  default is one click away after switching to another colour.
+- Following the Windows accent and custom colours still work exactly as in
+  v1.2.0.
+
+### v1.2.0 (2026-11-27)
 
 - **New: theme button** in the title bar (“Theme”).
   - **Follow Windows accent** (default) — reads the Windows 10/11 accent

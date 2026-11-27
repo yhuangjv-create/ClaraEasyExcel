@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
 )
 
 from mkr import __version__
-from mkr.config import Config
+from mkr.config import DEFAULT_THEME, Config
 from mkr.excel_bridge import ExcelComBridge
 from mkr.formulas import base as fbase  # noqa: F401 — triggers registry
 from mkr.formulas.base import FormulaBase, all_formula_names, get_formula
@@ -50,7 +50,7 @@ _TEXT_DIM = "#DCCEF2"
 _WARN = "#FFD27A"
 _OK = "#E9DFFB"
 
-DEFAULT_BASE = "#5C2D91"
+DEFAULT_BASE = DEFAULT_THEME
 
 
 def _hex_to_rgb(value: str) -> tuple[int, int, int]:
@@ -997,12 +997,19 @@ class SidecarWindow(QWidget):
         cfg = Config.get()
         lang = cfg.lang
         menu = QMenu(self)
+        act_purple = menu.addAction(tr("theme_purple", lang=lang))
+        act_purple.setCheckable(True)
+        act_purple.setChecked(cfg.theme.upper() == DEFAULT_BASE)
         act_auto = menu.addAction(tr("theme_auto", lang=lang))
         act_auto.setCheckable(True)
         act_auto.setChecked(cfg.theme == "auto")
         act_custom = menu.addAction(tr("theme_custom", lang=lang))
         chosen = menu.exec(self.btn_theme.mapToGlobal(self.btn_theme.rect().bottomLeft()))
-        if chosen is act_auto:
+        if chosen is act_purple:
+            cfg.theme = DEFAULT_BASE
+            cfg.save()
+            self._apply_theme()
+        elif chosen is act_auto:
             cfg.theme = "auto"
             cfg.save()
             self._apply_theme()

@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![版本](https://img.shields.io/badge/version-1.2.0-blue)
+![版本](https://img.shields.io/badge/version-1.2.1-blue)
 [![许可证: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![平台](https://img.shields.io/badge/platform-windows-blue)
@@ -58,7 +58,7 @@ Excel 新手快速编写常用内部公式和（规划中）VBA 宏：
 
 ## 功能特性
 
-### 公式引擎（v1.2.0 — 5 个核心公式）
+### 公式引擎（v1.2.1 — 5 个核心公式）
 
 每个公式都自带完整的 **引导 → 生成 → 诊断** 流水线：
 
@@ -190,7 +190,14 @@ MIT — 详见 [LICENSE](./LICENSE)
 <a id="版本更迭"></a>
 ## 版本更迭
 
-### 最新 — v1.2.0（2026-11-27）
+### 最新 — v1.2.1（2026-11-27）
+
+- **默认颜色**：窗口启动时使用**深紫色**预设（`#5C2D91`），不再默认跟随
+  Windows 强调色。
+- 主题菜单新增首项**「深紫色（默认）」**，切到别的颜色后可一键切回默认。
+- 「跟随 Windows 主题色」与自定义颜色功能与 v1.2.0 一致，仍可正常使用。
+
+### v1.2.0（2026-11-27）
 
 - **新增：标题栏「主题」按钮**。
   - **跟随 Windows 主题色**（默认）：从

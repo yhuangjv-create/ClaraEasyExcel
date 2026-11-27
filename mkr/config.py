@@ -14,6 +14,9 @@ from pathlib import Path
 _CONFIG_FILENAME = "config.json"
 _APPNAME = "ClaraEasyExcel"
 
+# Default window colour — the “deep purple” preset.  "auto" = Windows accent.
+DEFAULT_THEME = "#5C2D91"
+
 
 class Config:
     _instance: "Config | None" = None
@@ -23,7 +26,7 @@ class Config:
         self.window_geom: tuple[int, int, int, int] | None = None  # x, y, w, h
         self.recent_formulas: list[str] = []  # formula names recently used
         self.auto_connect: bool = True
-        self.theme: str = "auto"  # "auto" = Windows accent colour, else "#RRGGBB"
+        self.theme: str = DEFAULT_THEME  # "#RRGGBB", or "auto" = Windows accent
 
         self._path = self._resolve_path()
         self.load()
@@ -69,7 +72,7 @@ class Config:
             return
         self.lang = data.get("lang", "zh")
         self.auto_connect = bool(data.get("auto_connect", True))
-        self.theme = str(data.get("theme", "auto"))
+        self.theme = str(data.get("theme", DEFAULT_THEME))
         self.recent_formulas = list(data.get("recent_formulas", []))
         geom = data.get("window_geom")
         if isinstance(geom, list) and len(geom) == 4:
