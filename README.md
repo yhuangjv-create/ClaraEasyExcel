@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.3.3-blue)
+![Version](https://img.shields.io/badge/version-1.3.4-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.3.3 — 5 core formulas)
+### Formula engine (v1.3.4 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -195,7 +195,23 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.3.3 (2026-11-27)
+### Latest — v1.3.4 (2026-11-27)
+
+- **The window is ~24 % narrower and ~30 % shorter: 320×420 instead of
+  420×600**, with tighter padding throughout so far less of the spreadsheet is
+  covered.
+  - Reduced margins and spacing on all three screens, title bar, formula cards
+    and the list rows; button / input / preview-box padding and the font scale
+    were trimmed one step.
+  - Cards are now fitted to the viewport width (they used to be as wide as
+    their longest example formula, which produced a horizontal scrollbar in
+    the compact window and cut off text); long examples wrap instead.
+  - A saved window size identical to the old 420×600 default is treated as
+    “never resized” and opens at the new compact size; a size the user picked
+    by hand is kept.
+  - Minimum size is now 300×360.
+
+### v1.3.3 (2026-11-27)
 
 - **Fixed: hovering a formula card lit up one text line at a time.**  The card
   stylesheet used a bare `QWidget` selector, which also matched every `QLabel`

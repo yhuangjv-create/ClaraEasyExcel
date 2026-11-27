@@ -9,7 +9,7 @@ import colorsys
 import sys
 from typing import Any
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QGuiApplication
 from PySide6.QtWidgets import (
     QApplication,
@@ -51,6 +51,14 @@ _WARN = "#FFD27A"
 _OK = "#E9DFFB"
 
 DEFAULT_BASE = DEFAULT_THEME
+
+# Compact default window (v1.3.4): ~24 % narrower and ~30 % shorter than the
+# original 420x600, so the sidecar covers less of the spreadsheet.
+DEFAULT_W, DEFAULT_H = 320, 420
+MIN_W, MIN_H = 300, 360
+# Size shipped by earlier builds.  A saved geometry identical to it means the
+# user never resized the window, so it is safe to open at the new default.
+_LEGACY_DEFAULT = (420, 600)
 
 
 def _left_button_down() -> bool:
@@ -190,49 +198,49 @@ class Style:
 
 def _rebuild_style() -> None:
     Style.WINDOW = f"""
-        QWidget {{ background: {_BG}; color: {_TEXT}; font-family: "Microsoft YaHei", "Segoe UI"; font-size: 13px; }}
+        QWidget {{ background: {_BG}; color: {_TEXT}; font-family: "Microsoft YaHei", "Segoe UI"; font-size: 12px; }}
     """
     Style.CARD = f"""
-        QFrame {{ background: {_BG_CARD}; border-radius: 10px; padding: 12px; }}
+        QFrame {{ background: {_BG_CARD}; border-radius: 10px; padding: 8px; }}
         QFrame:hover {{ background: {_ACCENT}; }}
     """
     Style.BTN = f"""
         QPushButton {{ background: {_ACCENT}; color: white; border: none; border-radius: 6px;
-                       padding: 6px 14px; font-weight: bold; }}
+                       padding: 4px 10px; font-weight: bold; }}
         QPushButton:hover {{ background: {_ACCENT_HOVER}; }}
         QPushButton:disabled {{ background: {_BORDER}; color: {_TEXT_DIM}; }}
     """
     Style.BTN_GHOST = f"""
         QPushButton {{ background: transparent; color: {_TEXT}; border: 1px solid {_BORDER};
-                       border-radius: 6px; padding: 5px 12px; }}
+                       border-radius: 6px; padding: 3px 9px; }}
         QPushButton:hover {{ background: {_ACCENT}; color: white; }}
     """
     Style.BTN_TITLE = f"""
-        QPushButton {{ background: transparent; color: {_TEXT_DIM}; border: none; font-size: 16px;
-                       padding: 2px 8px; }}
+        QPushButton {{ background: transparent; color: {_TEXT_DIM}; border: none; font-size: 14px;
+                       padding: 0px 6px; }}
         QPushButton:hover {{ color: {_TEXT}; background: {_ACCENT_HOVER}; border-radius: 4px; }}
     """
     Style.INPUT = f"""
         QLineEdit, QComboBox, QPlainTextEdit {{
             background: {_BG_DEEP}; border: 1px solid {_BORDER}; border-radius: 6px;
-            color: {_TEXT}; padding: 6px; selection-background-color: {_ACCENT_HOVER};
+            color: {_TEXT}; padding: 4px; selection-background-color: {_ACCENT_HOVER};
         }}
         QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus {{ border: 1px solid {_ACCENT_HOVER}; }}
     """
-    Style.LABEL = f"color: {_TEXT_DIM}; font-size: 12px;"
-    Style.LABEL_TITLE = f"color: {_TEXT}; font-size: 16px; font-weight: bold;"
-    Style.LABEL_STEP = f"color: {_TEXT}; font-size: 14px; font-weight: bold;"
-    Style.LABEL_TIP = f"color: {_TEXT_DIM}; font-size: 11px; padding: 2px 4px;"
-    Style.LABEL_WARN = f"color: {_WARN}; font-size: 11px; padding: 2px 4px;"
+    Style.LABEL = f"color: {_TEXT_DIM}; font-size: 11px;"
+    Style.LABEL_TITLE = f"color: {_TEXT}; font-size: 14px; font-weight: bold;"
+    Style.LABEL_STEP = f"color: {_TEXT}; font-size: 13px; font-weight: bold;"
+    Style.LABEL_TIP = f"color: {_TEXT_DIM}; font-size: 11px; padding: 1px 2px;"
+    Style.LABEL_WARN = f"color: {_WARN}; font-size: 11px; padding: 1px 2px;"
     Style.LIST = f"""
         QListWidget {{ background: {_BG}; border: none; outline: none; }}
-        QListWidget::item {{ background: {_BG_CARD}; border-radius: 8px; padding: 10px; margin: 3px 0; }}
+        QListWidget::item {{ background: {_BG_CARD}; border-radius: 8px; padding: 6px; margin: 2px 0; }}
         QListWidget::item:hover {{ background: {_ACCENT}; color: white; }}
         QListWidget::item:selected {{ background: {_ACCENT_HOVER}; color: white; }}
     """
     Style.PREVIEW_BOX = f"""
         QFrame {{ background: {_BG_DEEP}; border: 1px solid {_BORDER}; border-radius: 8px;
-                  padding: 10px; font-family: "Consolas", "Courier New"; font-size: 13px; color: {_TEXT}; }}
+                  padding: 7px; font-family: "Consolas", "Courier New"; font-size: 12px; color: {_TEXT}; }}
     """
     Style.STATUS = f"color: {_TEXT_DIM}; font-size: 11px;"
 
@@ -271,8 +279,8 @@ class HomeScreen(QWidget):
 
     def _build_ui(self) -> None:
         v = QVBoxLayout(self)
-        v.setContentsMargins(14, 8, 14, 10)
-        v.setSpacing(8)
+        v.setContentsMargins(10, 6, 10, 7)
+        v.setSpacing(5)
 
         self.prompt_label = QLabel()
         self.prompt_label.setStyleSheet(Style.LABEL_TITLE)
@@ -289,6 +297,11 @@ class HomeScreen(QWidget):
 
         self.list_widget = QListWidget()
         self.list_widget.setStyleSheet(Style.LIST)
+        # Cards are always fitted to the viewport width (see _fit_item), so a
+        # horizontal scrollbar must never appear in the compact window.
+        self.list_widget.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
         self.list_widget.itemDoubleClicked.connect(self._on_card_clicked)
         v.addWidget(self.list_widget, stretch=1)
 
@@ -330,9 +343,35 @@ class HomeScreen(QWidget):
             card = _build_card(f, lang)
             item = QListWidgetItem()
             item.setData(Qt.ItemDataRole.UserRole, name)
-            item.setSizeHint(card.sizeHint())
             self.list_widget.addItem(item)
             self.list_widget.setItemWidget(item, card)
+            self._fit_item(item, card)
+
+    def _fit_item(self, item: QListWidgetItem, card: QWidget) -> None:
+        """Make a card exactly as wide as the viewport.
+
+        A card's natural sizeHint can be wider than the compact window (long
+        example formulas), which used to produce a horizontal scrollbar and
+        cut-off text.  Sizing the row to the viewport keeps text wrapped and
+        the list scrolling vertically only.
+        """
+        width = max(120, self.list_widget.viewport().width())
+        height = card.heightForWidth(width)
+        if height <= 0:
+            height = card.sizeHint().height()
+        item.setSizeHint(QSize(width, height))
+
+    def _refit_cards(self) -> None:
+        for i in range(self.list_widget.count()):
+            item = self.list_widget.item(i)
+            card = self.list_widget.itemWidget(item)
+            if card is not None:
+                self._fit_item(item, card)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        # Deferred: the viewport only reaches its final width after layout.
+        QTimer.singleShot(0, self._refit_cards)
 
     def _on_card_clicked(self, item: QListWidgetItem) -> None:
         name = item.data(Qt.ItemDataRole.UserRole)
@@ -361,12 +400,12 @@ def _build_card(f: FormulaBase, lang: str) -> QWidget:
         f"QWidget#formulaCard:hover {{ background: {_ACCENT}; }}"
     )
     v = QVBoxLayout(card)
-    v.setContentsMargins(10, 8, 10, 8)
-    v.setSpacing(3)
+    v.setContentsMargins(8, 5, 8, 5)
+    v.setSpacing(2)
 
     title = QLabel(f.zh_name if lang == "zh" else f.en_name)
     title.setStyleSheet(
-        f"background: transparent; color: {_TEXT}; font-weight: bold; font-size: 13px;"
+        f"background: transparent; color: {_TEXT}; font-weight: bold; font-size: 12px;"
     )
     # Let the mouse fall through to the card, so the whole card gets :hover
     # instead of the individual line under the cursor.
@@ -385,6 +424,7 @@ def _build_card(f: FormulaBase, lang: str) -> QWidget:
         f"background: transparent; color: {_TEXT}; "
         f"font-family: Consolas; font-size: 11px; padding-top: 2px;"
     )
+    example.setWordWrap(True)
     example.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
     v.addWidget(example)
     return card
@@ -423,8 +463,8 @@ class WizardScreen(QWidget):
 
     def _build_ui(self) -> None:
         v = QVBoxLayout(self)
-        v.setContentsMargins(14, 8, 14, 10)
-        v.setSpacing(6)
+        v.setContentsMargins(10, 6, 10, 7)
+        v.setSpacing(4)
 
         self.step_title = QLabel()
         self.step_title.setStyleSheet(Style.LABEL_STEP)
@@ -834,8 +874,8 @@ class PreviewScreen(QWidget):
 
     def _build_ui(self) -> None:
         v = QVBoxLayout(self)
-        v.setContentsMargins(14, 8, 14, 10)
-        v.setSpacing(8)
+        v.setContentsMargins(10, 6, 10, 7)
+        v.setSpacing(5)
 
         self.title = QLabel()
         self.title.setStyleSheet(Style.LABEL_TITLE)
@@ -996,7 +1036,7 @@ class SidecarWindow(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setStyleSheet(Style.WINDOW)
-        self.setMinimumSize(380, 500)
+        self.setMinimumSize(MIN_W, MIN_H)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -1009,14 +1049,15 @@ class SidecarWindow(QWidget):
             f"border: 1px solid {_BORDER}; }}"
         )
         v = QVBoxLayout(self.frame)
-        v.setContentsMargins(10, 6, 10, 6)
-        v.setSpacing(4)
+        v.setContentsMargins(7, 4, 7, 5)
+        v.setSpacing(3)
 
         # title bar
         title_row = QHBoxLayout()
+        title_row.setSpacing(2)
         self.title_label = QLabel()
         title_label = self.title_label
-        title_label.setStyleSheet(f"color: {_TEXT}; font-weight: bold; font-size: 13px; padding: 0 4px;")
+        title_label.setStyleSheet(f"color: {_TEXT}; font-weight: bold; font-size: 12px; padding: 0 2px;")
         title_row.addWidget(title_label, stretch=1)
         self.btn_theme = QPushButton()
         self.btn_theme.setStyleSheet(Style.BTN_TITLE)
@@ -1085,12 +1126,16 @@ class SidecarWindow(QWidget):
         cfg = Config.get()
         if cfg.window_geom:
             x, y, w, h = cfg.window_geom
+            if (w, h) == _LEGACY_DEFAULT:
+                # Never resized by hand → adopt the new compact default.
+                w, h = DEFAULT_W, DEFAULT_H
             self.setGeometry(x, y, w, h)
         else:
             # default top-right corner
             screen = QGuiApplication.primaryScreen().availableGeometry()
-            w, h = 420, 600
-            self.setGeometry(screen.right() - w - 20, screen.top() + 40, w, h)
+            self.setGeometry(
+                screen.right() - DEFAULT_W - 20, screen.top() + 40, DEFAULT_W, DEFAULT_H
+            )
 
     # ---------- theme ----------
     def _show_theme_menu(self) -> None:
