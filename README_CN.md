@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![版本](https://img.shields.io/badge/version-1.3.10-blue)
+![版本](https://img.shields.io/badge/version-1.3.11-blue)
 [![许可证: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![平台](https://img.shields.io/badge/platform-windows-blue)
@@ -58,7 +58,7 @@ Excel 新手快速编写常用内部公式和（规划中）VBA 宏：
 
 ## 功能特性
 
-### 公式引擎（v1.3.10 — 5 个核心公式）
+### 公式引擎（v1.3.11 — 5 个核心公式）
 
 每个公式都自带完整的 **引导 → 生成 → 诊断** 流水线：
 
@@ -191,7 +191,14 @@ MIT — 详见 [LICENSE](./LICENSE)
 <a id="版本更迭"></a>
 ## 版本更迭
 
-### 最新 — v1.3.10（2026-11-27）
+### 最新 — v1.3.11（2026-11-27）
+
+- **状态栏渐变里不再出现绿色。** 原来的冷端是冰青色 `#8BE9FD`，它与白色或紫色背景
+  混合时绿通道会占上风，看起来发绿。现在改为金黄 `#FFD479` → 白 → 蓝紫 `#9DB8FF`，
+  每一段都是偏蓝的；浅色主题的冷端也从青色换成 `#1D4ED8`。测试中断言冷端
+  B > G，避免绿色再次混入。
+
+### v1.3.10（2026-11-27）
 
 - **状态栏文字改为三段渐变**，不再是单一颜色：金黄 → 白 → 冰蓝横贯文字，在紫色
   背景上更醒目，同时保留呼吸式闪烁。`QLabel` 只能绘制纯色，因此由

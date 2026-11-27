@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.3.10-blue)
+![Version](https://img.shields.io/badge/version-1.3.11-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.3.10 — 5 core formulas)
+### Formula engine (v1.3.11 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -195,7 +195,16 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.3.10 (2026-11-27)
+### Latest — v1.3.11 (2026-11-27)
+
+- **No more green in the status gradient.**  The cool end was an icy cyan
+  (`#8BE9FD`), whose green channel dominates once it blends into white or into
+  the purple surface.  The ramp is now gold `#FFD479` → white → periwinkle
+  `#9DB8FF`, i.e. blue-forward at every step; the light-theme ramp ends in
+  `#1D4ED8` instead of teal.  The test asserts the cool stop leans blue
+  (B > G), so a green cast cannot creep back in.
+
+### v1.3.10 (2026-11-27)
 
 - **The status line is now painted with a three-stop gradient** instead of one
   flat colour: warm gold → white → ice blue across the text, which makes it

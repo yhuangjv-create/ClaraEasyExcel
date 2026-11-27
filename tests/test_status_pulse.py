@@ -51,6 +51,10 @@ def test_status_text_is_gradient_filled(app):
 
     stops = _status_gradient(0, 100).stops()
     assert len(stops) == 3
-    # three distinct colours: gold → white → ice blue on the dark theme
+    # three distinct colours: gold → white → blue on the dark theme
     assert len({color.name() for _, color in stops}) == 3
+    # no green cast: the warm end leans yellow, the cool end leans blue
+    warm, _, cool = (color for _, color in stops)
+    assert warm.green() > warm.blue()
+    assert cool.blue() > cool.green()
     win.close()

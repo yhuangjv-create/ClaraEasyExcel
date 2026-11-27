@@ -1037,12 +1037,17 @@ class PreviewScreen(QWidget):
 # Main window — borderless, draggable, always on top, with custom title bar
 # ==========================================================================
 def _status_gradient(x0: float, x1: float) -> QLinearGradient:
-    """Three-stop gradient for the status line, tuned per theme brightness."""
+    """Three-stop gradient for the status line, tuned per theme brightness.
+
+    The tail colours are deliberately blue-forward (G lower than B) — an icy
+    cyan like #8BE9FD turns visibly green where it blends into white or into
+    the purple background.
+    """
     grad = QLinearGradient(x0, 0.0, x1, 0.0)
     if QColor(_BG).lightness() > 150:  # light theme → deep inks stay readable
-        stops = ((0.0, "#B45309"), (0.45, "#111827"), (1.0, "#0E7490"))
-    else:  # dark theme → warm gold into ice blue
-        stops = ((0.0, "#FFD479"), (0.45, "#FFFFFF"), (1.0, "#8BE9FD"))
+        stops = ((0.0, "#B45309"), (0.45, "#111827"), (1.0, "#1D4ED8"))
+    else:  # dark theme → warm gold into periwinkle blue
+        stops = ((0.0, "#FFD479"), (0.45, "#FFFFFF"), (1.0, "#9DB8FF"))
     for pos, color in stops:
         grad.setColorAt(pos, QColor(color))
     return grad
