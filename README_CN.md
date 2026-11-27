@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![版本](https://img.shields.io/badge/version-1.2.2-blue)
+![版本](https://img.shields.io/badge/version-1.2.3-blue)
 [![许可证: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![平台](https://img.shields.io/badge/platform-windows-blue)
@@ -58,7 +58,7 @@ Excel 新手快速编写常用内部公式和（规划中）VBA 宏：
 
 ## 功能特性
 
-### 公式引擎（v1.2.2 — 5 个核心公式）
+### 公式引擎（v1.2.3 — 5 个核心公式）
 
 每个公式都自带完整的 **引导 → 生成 → 诊断** 流水线：
 
@@ -190,7 +190,18 @@ MIT — 详见 [LICENSE](./LICENSE)
 <a id="版本更迭"></a>
 ## 版本更迭
 
-### 最新 — v1.2.2（2026-11-27）
+### 最新 — v1.2.3（2026-11-27）
+
+- **修复：向导一次点击跳过好几步**（例如填完 VLOOKUP 第 1～4 步、返回首页再
+  进入，点一次「下一步」会从第 1 步直接跳到第 4 步）。
+  根因：`_render_step()` 里调用的是无参 `btn_next.disconnect()`，PySide6 会抛
+  `TypeError`（“not enough arguments”）且**什么也没断开**，于是每渲染一步就多
+  叠加一个 `clicked` 连接，点一次相当于连点多次。
+- 现在 `btn_next` 通过记录槽位的 `_connect_next` 绑定，始终只有一个处理方法。
+  新增回归测试 `tests/test_wizard_flow.py`：一次点击只前进一步、重新进入向导
+  必从第 1 步开始。
+
+### v1.2.2（2026-11-27）
 
 - **修复「提示已写入 A1，但文件里什么都没有」。**
   根因：从资源管理器 / 开始菜单打开的 Excel 通常**没有注册到 COM ROT**，

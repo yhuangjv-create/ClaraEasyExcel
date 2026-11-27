@@ -374,6 +374,7 @@ class WizardScreen(QWidget):
         self.steps: list[Any] = []  # ArgStep
         self.values: dict[str, str] = {}
         self.current = 0
+        self._next_slot: Any = None  # slot currently wired to btn_next
         # Live, non-blocking cell picking (see _pick_from_excel):
         #   _pick_awaiting=True → the poll timer below watches Excel's selection
         self._pick_awaiting = False
@@ -459,7 +460,6 @@ class WizardScreen(QWidget):
         bottom.addWidget(self.btn_prev)
         self.btn_next = QPushButton()
         self.btn_next.setStyleSheet(Style.BTN)
-        self.btn_next.clicked.connect(self._on_next)
         bottom.addWidget(self.btn_next)
         v.addLayout(bottom)
 
@@ -527,25 +527,29 @@ class WizardScreen(QWidget):
 
         # next button label: "完成" on last step
         if self.current == total - 1:
-            self.btn_next.setText("✓ " + (tr("wizard_done", lang=lang)))
             self.btn_next.setText(f"✓ {tr('wizard_write', lang=lang)}")
-            # switch to next_ready signal — window will move to preview itself
-            try:
-                self.btn_next.disconnect()
-            except TypeError:
-                pass
-            self.btn_next.setStyleSheet(Style.BTN)
-            self.btn_next.clicked.connect(self._on_done)
+            self._connect_next(self._on_done)
         else:
-            try:
-                self.btn_next.disconnect()
-            except TypeError:
-                pass
             self.btn_next.setText(tr("wizard_next", lang=lang))
-            self.btn_next.setStyleSheet(Style.BTN)
-            self.btn_next.clicked.connect(self._on_next)
+            self._connect_next(self._on_next)
 
         self._refresh_static_texts()
+
+    def _connect_next(self, slot) -> None:
+        """Wire btn_next to exactly one slot.
+
+        Note: a bare self.btn_next.disconnect() raises TypeError in PySide6
+        (“not enough arguments”) and disconnects NOTHING — doing that on every
+        _render_step() piled up one extra _on_next per step, so a single click
+        then jumped several steps at once.  Track the slot we wired instead.
+        """
+        if self._next_slot is not None:
+            try:
+                self.btn_next.clicked.disconnect(self._next_slot)
+            except (TypeError, RuntimeError):
+                pass
+        self._next_slot = slot
+        self.btn_next.clicked.connect(slot)
 
     def _refresh_static_texts(self) -> None:
         cfg = Config.get()

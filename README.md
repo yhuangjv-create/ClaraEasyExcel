@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.2.2-blue)
+![Version](https://img.shields.io/badge/version-1.2.3-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.2.2 — 5 core formulas)
+### Formula engine (v1.2.3 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -194,7 +194,21 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.2.2 (2026-11-27)
+### Latest — v1.2.3 (2026-11-27)
+
+- **Fixed: the wizard jumped several steps at once** (e.g. after filling
+  VLOOKUP steps 1-4, going back home and reopening, one “Next” click jumped
+  from step 1 to step 4).
+  Root cause: `_render_step()` called a bare `btn_next.disconnect()`, which in
+  PySide6 raises `TypeError` (“not enough arguments”) and disconnects
+  **nothing** — so every rendered step added one more `clicked` connection and
+  a single click fired `_on_next` several times.
+- `btn_next` is now wired through a tracked slot (`_connect_next`), so it
+  always has exactly one handler.  Added a regression test
+  (`tests/test_wizard_flow.py`) asserting one click = one step and that
+  reopening the wizard starts at step 1.
+
+### v1.2.2 (2026-11-27)
 
 - **Fixed: “says it wrote to A1, but nothing appears in my file”.**
   Root cause: when Excel is opened from Explorer / the Start menu it usually
