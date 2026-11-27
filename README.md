@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.3.2-blue)
+![Version](https://img.shields.io/badge/version-1.3.3-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.3.2 — 5 core formulas)
+### Formula engine (v1.3.3 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -195,7 +195,20 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.3.2 (2026-11-27)
+### Latest — v1.3.3 (2026-11-27)
+
+- **Fixed: hovering a formula card lit up one text line at a time.**  The card
+  stylesheet used a bare `QWidget` selector, which also matched every `QLabel`
+  inside it — each line painted its own rounded background and had its own
+  `:hover`, so sweeping the mouse down a 3-line description highlighted the
+  line under the cursor instead of the card.
+- The rules are now scoped to `QWidget#formulaCard`, the labels are explicitly
+  transparent and mouse-transparent: the **whole card** highlights as one block
+  and the pointer never “sticks” on a line.
+- Card examples now follow the UI language (English mode used to show the
+  Chinese example).  Regression test in `tests/test_home_cards.py`.
+
+### v1.3.2 (2026-11-27)
 
 - **Fixed: the button left of “Next” was blank.**  `btn_prev` was created and
   wired to the back handler, but `_refresh_static_texts()` never set its label,

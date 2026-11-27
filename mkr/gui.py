@@ -349,27 +349,43 @@ class HomeScreen(QWidget):
 
 def _build_card(f: FormulaBase, lang: str) -> QWidget:
     card = QWidget()
+    card.setObjectName("formulaCard")
+    card.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+    # Scope the rules to the card itself.  A bare `QWidget` selector also
+    # matched every QLabel inside, so each text line painted its own rounded
+    # background and had its own :hover — hovering a description lit up one
+    # line at a time.  With `QWidget#formulaCard` only the card reacts, and it
+    # highlights as one block.
     card.setStyleSheet(
-        f"QWidget {{ background: {_BG_CARD}; border-radius: 8px; }} "
-        f"QWidget:hover {{ background: {_ACCENT}; }}"
+        f"QWidget#formulaCard {{ background: {_BG_CARD}; border-radius: 8px; }}"
+        f"QWidget#formulaCard:hover {{ background: {_ACCENT}; }}"
     )
     v = QVBoxLayout(card)
     v.setContentsMargins(10, 8, 10, 8)
-    v.setSpacing(2)
+    v.setSpacing(3)
 
     title = QLabel(f.zh_name if lang == "zh" else f.en_name)
-    title.setStyleSheet(f"color: {_TEXT}; font-weight: bold; font-size: 13px;")
+    title.setStyleSheet(
+        f"background: transparent; color: {_TEXT}; font-weight: bold; font-size: 13px;"
+    )
+    # Let the mouse fall through to the card, so the whole card gets :hover
+    # instead of the individual line under the cursor.
+    title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
     v.addWidget(title)
 
     desc = QLabel(f.zh_desc if lang == "zh" else f.en_desc)
-    desc.setStyleSheet(f"color: {_TEXT_DIM}; font-size: 11px;")
+    desc.setStyleSheet(f"background: transparent; color: {_TEXT_DIM}; font-size: 11px;")
     desc.setWordWrap(True)
+    desc.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
     v.addWidget(desc)
 
-    example = QLabel((f.zh_example if lang == "zh" else f.en_example) or f.example)  # type: ignore[attr-defined]
-    example = QLabel(getattr(f, "zh_example", "") or getattr(f, "en_example", "") or f.zh_example)
-    example.setText(getattr(f, "zh_example", "") or getattr(f, "en_example", ""))
-    example.setStyleSheet(f"color: {_TEXT}; font-family: Consolas; font-size: 11px; padding-top: 2px;")
+    example_text = (f.zh_example if lang == "zh" else f.en_example) or f.zh_example
+    example = QLabel(example_text)
+    example.setStyleSheet(
+        f"background: transparent; color: {_TEXT}; "
+        f"font-family: Consolas; font-size: 11px; padding-top: 2px;"
+    )
+    example.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
     v.addWidget(example)
     return card
 

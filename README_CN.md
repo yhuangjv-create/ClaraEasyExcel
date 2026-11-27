@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![版本](https://img.shields.io/badge/version-1.3.2-blue)
+![版本](https://img.shields.io/badge/version-1.3.3-blue)
 [![许可证: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![平台](https://img.shields.io/badge/platform-windows-blue)
@@ -58,7 +58,7 @@ Excel 新手快速编写常用内部公式和（规划中）VBA 宏：
 
 ## 功能特性
 
-### 公式引擎（v1.3.2 — 5 个核心公式）
+### 公式引擎（v1.3.3 — 5 个核心公式）
 
 每个公式都自带完整的 **引导 → 生成 → 诊断** 流水线：
 
@@ -191,7 +191,17 @@ MIT — 详见 [LICENSE](./LICENSE)
 <a id="版本更迭"></a>
 ## 版本更迭
 
-### 最新 — v1.3.2（2026-11-27）
+### 最新 — v1.3.3（2026-11-27）
+
+- **修复：鼠标扫过公式卡片时会一行一行地亮起。** 卡片样式用了裸 `QWidget`
+  选择器，把卡片里每个 `QLabel` 也一起选中了——每行文字各自绘制圆角背景、各自
+  带 `:hover`，所以鼠标沿三行说明往下扫时，亮起的是光标所在的那一行而不是整张卡片。
+- 现在样式限定为 `QWidget#formulaCard`，内部文字标签背景透明且不接收鼠标事件：
+  **整张卡片**作为一个整体高亮，鼠标不会"卡"在某一行上。
+- 顺带修正：卡片示例公式跟随界面语言（英文界面此前显示的是中文示例）。
+  新增回归测试 `tests/test_home_cards.py`。
+
+### v1.3.2（2026-11-27）
 
 - **修复：「下一步」左边的按钮是空白的。** `btn_prev` 虽然创建了、也绑定了返回
   的处理函数，但 `_refresh_static_texts()` 从未给它设置文字，所以「下一步」旁边

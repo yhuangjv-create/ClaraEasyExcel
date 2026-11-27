@@ -1,0 +1,54 @@
+"""Regression: hovering a formula card highlights the whole card, not one line.
+
+Bug: the card stylesheet used a bare `QWidget` selector, which also matched
+every QLabel inside the card.  Each line therefore painted its own rounded
+background and had its own :hover, so sweeping the mouse down a 3-line
+description lit up one line at a time instead of the card as a block.
+"""
+
+import os
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+import pytest
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QLabel, QWidget
+
+from mkr.gui import SidecarWindow
+
+
+class FakeBridge:
+    def is_connected(self) -> bool:
+        return False
+
+    def workbook_name(self) -> str:
+        return ""
+
+
+@pytest.fixture(scope="module")
+def app():
+    instance = QApplication.instance()
+    return instance or QApplication([])
+
+
+def test_card_hover_is_scoped_to_the_whole_card(app):
+    win = SidecarWindow(FakeBridge())
+    win.home.refresh_texts()
+
+    cards = win.home.list_widget.findChildren(QWidget, "formulaCard")
+    assert cards, "home screen should render formula cards"
+
+    for card in cards:
+        sheet = card.styleSheet()
+        # hover must be scoped to the card and never hit a bare QWidget rule
+        assert "QWidget#formulaCard" in sheet
+        assert "QWidget:hover" not in sheet
+        assert "QWidget {\n" not in sheet and "QWidget {" not in sheet
+
+        labels = card.findChildren(QLabel)
+        assert labels
+        for label in labels:
+            # text lines must not paint their own background …
+            assert "transparent" in label.styleSheet()
+            # … and must let the mouse reach the card for :hover
+            assert label.testAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
