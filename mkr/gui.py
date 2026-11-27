@@ -33,17 +33,17 @@ from mkr.formulas.base import FormulaBase, all_formula_names, get_formula
 from mkr.i18n import tr
 from mkr.intent import detect
 
-# ---------- Windows 11 “deep orange-yellow” palette — NO green anywhere ----------
-_BG = "#F7630C"        # window base — Win11 deep orange-yellow accent
-_BG_CARD = "#FFF1DE"   # cream card so dark ink text stays readable
-_BG_DEEP = "#FFF8F0"   # inputs / preview boxes
-_BORDER = "#8A3B00"    # burnt-orange border
-_ACCENT = "#8A3B00"    # primary button / selected surface
-_ACCENT_HOVER = "#A64A00"
-_TEXT = "#331A00"      # dark ink
-_TEXT_DIM = "#4A2600"
-_WARN = "#5A0A00"      # deep red-brown — never green
-_OK = "#5C3A14"
+# ---------- deep purple palette — NO green anywhere ----------
+_BG = "#5C2D91"        # window base — deep purple
+_BG_CARD = "#4E2578"   # card bg — deeper purple so light text stays readable
+_BG_DEEP = "#3A1A5C"   # inputs / preview boxes
+_BORDER = "#C9B6E8"    # light lavender border
+_ACCENT = "#431F66"    # primary button / hover surface
+_ACCENT_HOVER = "#744DA9"
+_TEXT = "#F6F1FD"      # near-white
+_TEXT_DIM = "#DCCEF2"
+_WARN = "#FFD27A"      # amber — never green
+_OK = "#E9DFFB"
 
 
 class Style:
@@ -53,13 +53,13 @@ class Style:
     """
     CARD = f"""
         QFrame {{ background: {_BG_CARD}; border-radius: 10px; padding: 12px; }}
-        QFrame:hover {{ background: #FFD9AE; }}
+        QFrame:hover {{ background: {_ACCENT}; }}
     """
     BTN = f"""
         QPushButton {{ background: {_ACCENT}; color: white; border: none; border-radius: 6px;
                        padding: 6px 14px; font-weight: bold; }}
         QPushButton:hover {{ background: {_ACCENT_HOVER}; }}
-        QPushButton:disabled {{ background: #D9C6B0; color: #8A7460; }}
+        QPushButton:disabled {{ background: #6B5C80; color: #D8CCEA; }}
     """
     BTN_GHOST = f"""
         QPushButton {{ background: transparent; color: {_TEXT}; border: 1px solid {_BORDER};
@@ -69,12 +69,12 @@ class Style:
     BTN_TITLE = f"""
         QPushButton {{ background: transparent; color: {_TEXT_DIM}; border: none; font-size: 16px;
                        padding: 2px 8px; }}
-        QPushButton:hover {{ color: {_TEXT}; background: #FF8A3D; border-radius: 4px; }}
+        QPushButton:hover {{ color: {_TEXT}; background: {_ACCENT_HOVER}; border-radius: 4px; }}
     """
     INPUT = f"""
         QLineEdit, QComboBox, QPlainTextEdit {{
             background: {_BG_DEEP}; border: 1px solid {_BORDER}; border-radius: 6px;
-            color: {_TEXT}; padding: 6px; selection-background-color: #FFD9AE;
+            color: {_TEXT}; padding: 6px; selection-background-color: {_ACCENT_HOVER};
         }}
         QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus {{ border: 1px solid {_ACCENT_HOVER}; }}
     """
@@ -86,8 +86,8 @@ class Style:
     LIST = f"""
         QListWidget {{ background: {_BG}; border: none; outline: none; }}
         QListWidget::item {{ background: {_BG_CARD}; border-radius: 8px; padding: 10px; margin: 3px 0; }}
-        QListWidget::item:hover {{ background: #FFE2C4; color: {_TEXT}; }}
-        QListWidget::item:selected {{ background: #FFD0A4; color: {_TEXT}; }}
+        QListWidget::item:hover {{ background: {_ACCENT}; color: white; }}
+        QListWidget::item:selected {{ background: {_ACCENT_HOVER}; color: white; }}
     """
     PREVIEW_BOX = f"""
         QFrame {{ background: {_BG_DEEP}; border: 1px solid {_BORDER}; border-radius: 8px;
@@ -181,7 +181,7 @@ def _build_card(f: FormulaBase, lang: str) -> QWidget:
     card = QWidget()
     card.setStyleSheet(
         f"QWidget {{ background: {_BG_CARD}; border-radius: 8px; }} "
-        "QWidget:hover { background: #FFD9AE; }"
+        f"QWidget:hover {{ background: {_ACCENT}; }}"
     )
     v = QVBoxLayout(card)
     v.setContentsMargins(10, 8, 10, 8)
@@ -723,7 +723,7 @@ class SidecarWindow(QWidget):
         self.frame.setObjectName("sidecarFrame")
         self.frame.setStyleSheet(
             f"QWidget#sidecarFrame {{ background: {_BG}; border-radius: 12px; "
-            f"border: 1px solid #FFD9AE; }}"
+            f"border: 1px solid {_BORDER}; }}"
         )
         v = QVBoxLayout(self.frame)
         v.setContentsMargins(10, 6, 10, 6)
