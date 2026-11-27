@@ -20,6 +20,10 @@ _TRANSLATIONS: dict[str, dict[str, str]] = {
     "theme_custom": {"zh": "自定义颜色…", "en": "Custom colour…"},
     "theme_pick_title": {"zh": "选择主界面底色", "en": "Pick the window base colour"},
     "theme_applied": {"zh": "已应用主题色", "en": "Theme applied"},
+    "diag_excel_busy": {
+        "zh": "Excel 已打开但暂时连不上，请先点一下 Excel 的单元格再重试",
+        "en": "Excel is open but unreachable — click a cell in Excel and retry",
+    },
 
     # ---------- Home screen ----------
     "home_prompt": {

@@ -1,27 +1,27 @@
 """COM bridge — single-threaded on GUI thread, single proxy per session.
-
 Connection strategy (deterministic, no guesswork):
-  * **GetActiveObject("Excel.Application") is the ONLY way to find the user's
-    already-running Excel.**  A Dispatch-created Excel always registers in
-    the ROT immediately; a user-created Excel takes 2-15 seconds after the
-    window first appears before COM's ROT knows about it.  We retry up to
-    15 times × 1 second to wait for it.
-  * If GetActiveObject still fails after 15 seconds, the user genuinely
-    hasn't opened Excel yet — we Dispatch a **Visible=True** Excel (user can
-    SEE it, so they know we created it) and mark _we_started_it=True so we
-    close it on shutdown.  We NEVER create a hidden Dispatch instance — a
-    hidden one is exactly what causes the "writes land nowhere" bug.
-  * After Dispatch, we retry GetActiveObject **once more**.  Why?  Dispatch
-    registers immediately, so now GetActiveObject WILL succeed (it returns
-    whichever Excel registered last).  We use this new proxy so Dispatch
-    can be garbage-collected.
+  * We bind to the **visible Excel window** the user is actually working in,
+    by enumerating top-level XLMAIN windows and asking MSAA for the native
+    object behind its EXCEL7 sheet window (OBJID_NATIVEOM).  Excel started
+    from Explorer / the Start menu usually does NOT appear in the COM ROT, so
+    GetActiveObject alone cannot find it.
+  * If several Excel windows exist we prefer, in order: the foreground one,
+    the one we are already pinned to, any window with a real workbook file
+    path, and only then a blank “工作簿1”.
+  * GetActiveObject is a last-resort fallback and is trusted **only** when its
+    `Application.Hwnd` is one of the visible windows.  A stale hidden instance
+    (left over from older builds that used Dispatch) would otherwise hijack
+    every write: its ActiveCell is A1, which is exactly the “it says it wrote
+    to A1 but nothing appeared in my file” bug.
+  * We never Dispatch while any Excel window exists.  Only when Excel is not
+    running at all do we start a visible instance and mark _we_started_it, so
+    the workbook we create is the one we write into and the one we close.
 
 _rebind() policy (called before every read/write):
-  * Try GetActiveObject.  If it succeeds → swap proxy.  This means if the
-    user JUST opened their Excel window and it finally registered, we pick
-    it up next call.
-  * If GetActiveObject fails → keep using whatever proxy we already have.
-    No Dispatch fallback inside _rebind — that would double-spawn Excel.
+  * Keep the proxy pinned to the same Excel window, so the ActiveCell read and
+    the following write always hit the SAME workbook.
+  * Re-attach only when that window is gone, or the user switched to another
+    Excel instance (foreground is a different Excel window).
 
 CoInitialize / CoUninitialize:
   * Called ONCE at app start (co_init) and ONCE at app shutdown (co_uninit),
@@ -29,15 +29,28 @@ CoInitialize / CoUninitialize:
 """
 from __future__ import annotations
 
+import ctypes
 import time
 from typing import Any
 
 try:
     import pythoncom  # type: ignore[import-not-found]
     import win32com.client  # type: ignore[import-not-found]
+    import win32com.client.dynamic  # type: ignore[import-not-found]
 except ImportError:
     win32com = None  # type: ignore[assignment]
     pythoncom = None  # type: ignore[assignment]
+
+
+class _GUID(ctypes.Structure):
+    """Win32 GUID layout, used to pass IID_IDispatch to oleacc."""
+
+    _fields_ = [
+        ("Data1", ctypes.c_ulong),
+        ("Data2", ctypes.c_ushort),
+        ("Data3", ctypes.c_ushort),
+        ("Data4", ctypes.c_ubyte * 8),
+    ]
 
 
 # Actual Excel 365 COM error codes — mapped by live `Range.Value` tests.
@@ -75,6 +88,7 @@ class ExcelComBridge:
 
     def __init__(self) -> None:
         self._excel: Any = None
+        self._hwnd: int | None = None  # main window of the Excel we are bound to
         self._co_inited = False
         self._we_started_it = False
 
@@ -97,88 +111,246 @@ class ExcelComBridge:
             pythoncom.CoUninitialize()
             self._co_inited = False
 
+    # ---------- attaching to the Excel the user is actually using ----------
+    @staticmethod
+    def _excel_hwnds() -> list[int]:
+        """Top-level windows of class XLMAIN — one per running Excel."""
+        try:
+            import win32gui
+        except Exception:
+            return []
+        found: list[int] = []
+
+        def _cb(hwnd: int, _param: Any) -> bool:
+            try:
+                if win32gui.IsWindowVisible(hwnd) and win32gui.GetClassName(hwnd) == "XLMAIN":
+                    found.append(int(hwnd))
+            except Exception:
+                pass
+            return True
+
+        try:
+            win32gui.EnumWindows(_cb, None)
+        except Exception:
+            return []
+        return found
+
+    @staticmethod
+    def _foreground_excel(windows: list[int]) -> int | None:
+        try:
+            import win32gui
+
+            root = win32gui.GetAncestor(win32gui.GetForegroundWindow(), 2)  # GA_ROOT
+            if root in windows:
+                return int(root)
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def _find_child_class(root: int, cls: str, max_depth: int = 5) -> int | None:
+        """Depth-first search for a child window of the given class."""
+        try:
+            import win32gui
+        except Exception:
+            return None
+        pending: list[tuple[int, int]] = []
+        try:
+            child = win32gui.GetWindow(root, 5)  # GW_CHILD
+            while child:
+                pending.append((int(child), 1))
+                child = win32gui.GetWindow(child, 2)  # GW_HWNDNEXT
+        except Exception:
+            return None
+        while pending:
+            hwnd, depth = pending.pop(0)
+            try:
+                if win32gui.GetClassName(hwnd) == cls:
+                    return hwnd
+                if depth < max_depth:
+                    kid = win32gui.GetWindow(hwnd, 5)
+                    while kid:
+                        pending.append((int(kid), depth + 1))
+                        kid = win32gui.GetWindow(kid, 2)
+            except Exception:
+                continue
+        return None
+
+    def _attach_window(self, hwnd: int) -> Any:
+        """Application of a running Excel, obtained from its main window.
+
+        Works even when Excel never registered in the COM ROT (the usual case
+        when Excel is started from Explorer / the Start menu): we ask MSAA for
+        the native object behind the sheet window (OBJID_NATIVEOM) and turn
+        that raw interface pointer into a usable COM proxy.
+        """
+        try:
+            import ctypes
+            import uuid
+
+            child = self._find_child_class(hwnd, "EXCEL7")
+            if not child:
+                return None
+            iid = _GUID.from_buffer_copy(uuid.UUID(str(pythoncom.IID_IDispatch)).bytes_le)
+            ptr = ctypes.POINTER(ctypes.c_void_p)()
+            ctypes.oledll.oleacc.AccessibleObjectFromWindow(
+                ctypes.c_void_p(child),
+                ctypes.c_ulong(0xFFFFFFF0),  # OBJID_NATIVEOM
+                ctypes.byref(iid),
+                ctypes.byref(ptr),
+            )
+            raw = ctypes.cast(ptr, ctypes.c_void_p).value
+            if not raw:
+                return None
+            unk = pythoncom.ObjectFromAddress(raw, pythoncom.IID_IDispatch)
+            return win32com.client.dynamic.Dispatch(unk).Application
+        except Exception:
+            return None
+
+    def _try_attach(self) -> bool:
+        """Bind to a real, open workbook — foreground instance first.
+
+        Windows whose workbook has a path (a real file the user opened) are
+        preferred over blank "工作簿1" leftovers from older versions.
+        """
+        windows = self._excel_hwnds()
+        order: list[int] = []
+        fg = self._foreground_excel(windows)
+        if fg is not None:
+            order.append(fg)
+        if self._hwnd is not None and self._hwnd in windows:
+            order.append(int(self._hwnd))
+        order += [h for h in windows if h not in order]
+
+        blanks: list[int] = []
+        for hwnd in order:
+            app = self._attach_window(hwnd)
+            if app is None:
+                continue
+            try:
+                wb = app.ActiveWorkbook
+                if wb is None:
+                    continue  # nothing to write into
+                has_path = bool(str(wb.Path or ""))
+            except Exception:
+                continue
+            if not has_path:
+                blanks.append(hwnd)
+                continue
+            self._excel = app
+            self._hwnd = hwnd
+            self._we_started_it = False
+            return True
+
+        # Nothing but unsaved blank workbooks → use the first one.
+        for hwnd in blanks:
+            app = self._attach_window(hwnd)
+            if app is None:
+                continue
+            try:
+                if app.ActiveWorkbook is None:
+                    continue
+            except Exception:
+                continue
+            self._excel = app
+            self._hwnd = hwnd
+            self._we_started_it = False
+            return True
+
+        # Fallback: the instance registered itself in the COM ROT.  Only trust
+        # it if its main window is one we can actually see — a stale hidden
+        # instance (left over from old Dispatch code) otherwise hijacks writes.
+        try:
+            app = win32com.client.GetActiveObject("Excel.Application")
+            hwnd = int(app.Hwnd)
+            if hwnd in windows and app.ActiveWorkbook is not None:
+                self._excel = app
+                self._hwnd = hwnd
+                self._we_started_it = False
+                return True
+        except Exception:
+            pass
+        return False
+
+    def workbook_name(self) -> str:
+        try:
+            wb = self._excel.ActiveWorkbook
+            return str(wb.Name) if wb is not None else ""
+        except Exception:
+            return ""
+
     # ---------- public connect ----------
     def connect(self) -> dict:
         self.co_init()
         if win32com is None:
             return {"ok": False, "error": "pywin32 not installed"}
 
-        # Phase 1: try GetActiveObject for up to 15 seconds
-        for _ in range(15):
-            try:
-                self._excel = win32com.client.GetActiveObject("Excel.Application")
-                self._we_started_it = False
-                break
-            except Exception:
-                time.sleep(1.0)
+        # 1) Attach to the Excel the user has open.  We must NEVER spawn a
+        #    second instance while Excel is running: a fresh blank workbook
+        #    has its ActiveCell in A1, which is exactly the “says it wrote to
+        #    A1 but nothing appeared in my file” bug.
+        for _ in range(8):
+            if self._try_attach():
+                return {"ok": True, "data": self.workbook_name()}
+            time.sleep(1.0)
 
-        # Phase 2: if still nothing — create one VISIBLE (user sees it)
-        _we_created_one = False
-        if self._excel is None:
+        # 2) Excel really is not running → start one so the user can work.
+        if not self._excel_hwnds():
             try:
-                dis = win32com.client.Dispatch("Excel.Application")
-                dis.Visible = True
-                dis.Workbooks.Add()
-                _we_created_one = True
+                app = win32com.client.Dispatch("Excel.Application")
+                app.Visible = True
+                app.Workbooks.Add()
+                self._excel = app
+                self._hwnd = int(app.Hwnd)
                 self._we_started_it = True
-                # Phase 3: retry GetActiveObject now that Dispatch registered
-                # — GetActiveObject will find whichever registered last
-                time.sleep(0.5)
-                try:
-                    self._excel = win32com.client.GetActiveObject("Excel.Application")
-                    if not _we_created_one:
-                        self._we_started_it = False
-                    # else keep _we_started_it=True — Dispatch IS ours
-                    dis = None  # orphan Dispatch proxy, GC it
-                except Exception:
-                    # Fallback — use Dispatch proxy directly
-                    self._excel = dis
+                return {"ok": True, "data": self.workbook_name()}
             except Exception as exc:
                 self._excel = None
                 self._we_started_it = False
                 return {"ok": False, "error": str(exc)}
 
-        # Safety: ActiveSheet can't be None
-        if self._excel.ActiveSheet is None:
-            try:
-                self._excel.Workbooks.Add()
-            except Exception:
-                pass
-
-        return {"ok": True, "data": "connected"}
+        # 3) Excel is up but unreachable (modal dialog, protected view, …).
+        #    Say so instead of silently writing into some other workbook.
+        return {"ok": False, "error": "excel_busy"}
 
     def is_connected(self) -> bool:
         if self._excel is None:
             return False
         try:
-            _ = self._excel.Version
-            return True
+            return self._excel.ActiveWorkbook is not None
         except Exception:
             self._excel = None
+            self._hwnd = None
             self._we_started_it = False
             return False
 
     # ---------- _rebind: called before every COM access ----------
     def _rebind(self) -> bool:
-        """Try to swap proxy for the currently-active Excel.  Non-fatal if
-        GetActiveObject fails — we keep using what we already have."""
+        """Keep the proxy pinned to the Excel window the user is working in.
+
+        - our window is gone (closed) or the user switched to another Excel
+          instance → re-attach;
+        - otherwise keep the existing proxy so a read (ActiveCell) and the
+          following write always hit the SAME workbook.
+        """
         if win32com is None or pythoncom is None:
             return bool(self._excel)
-        try:
-            self._excel = win32com.client.GetActiveObject("Excel.Application")
-            # Don't touch _we_started_it — it's set once at connect time and
-            # stays sticky so we always know whether we own this instance.
-        except Exception:
-            pass
+        windows = self._excel_hwnds()
+        fg = self._foreground_excel(windows)
+        if fg is not None and fg != self._hwnd:
+            if not self._try_attach():
+                return False
+        elif self._hwnd is None or (windows and self._hwnd not in windows):
+            if not self._try_attach():
+                return False
         if self._excel is None:
             return False
-        # Ensure ActiveSheet exists
-        if self._excel.ActiveSheet is None:
-            try:
-                self._excel.Workbooks.Add()
-            except Exception:
-                return False
-        return True
+        try:
+            return self._excel.ActiveWorkbook is not None
+        except Exception:
+            self._excel = None
+            self._hwnd = None
+            return False
 
     # ---------- protected exec ----------
     def _with_protection(self, fn):

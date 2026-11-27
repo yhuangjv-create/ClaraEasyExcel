@@ -3,8 +3,8 @@
   "auto_connect": true,
   "theme": "#5C2D91",
   "recent_formulas": [
-    "VLOOKUP",
-    "CONCAT"
+    "CONCAT",
+    "VLOOKUP"
   ],
   "window_geom": [
     1266,

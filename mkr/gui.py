@@ -1084,7 +1084,9 @@ class SidecarWindow(QWidget):
         addr = str(addr_result["data"])
         write_result = self.bridge.set_formula(addr, body)
         if write_result.get("ok"):
-            self.status.setText(f"✓ {tr('written', lang=lang)} — {addr}")
+            name = self.bridge.workbook_name()
+            suffix = f" · {name}" if name else ""
+            self.status.setText(f"✓ {tr('written', lang=lang)} — {addr}{suffix}")
             # re-check for errors post-write
             err = self.bridge.get_cell_error(addr)
             suggestions = self.preview.formula.diagnose(body, err) if self.preview.formula else []
@@ -1102,9 +1104,11 @@ class SidecarWindow(QWidget):
         cfg = Config.get()
         lang = cfg.lang
         ok = self.bridge.is_connected()
-        self.status.setText(
-            (tr("diag_conn_ok", lang=lang) if ok else tr("diag_conn_fail", lang=lang))
-        )
+        if ok:
+            name = self.bridge.workbook_name()
+            self.status.setText(tr("diag_conn_ok", lang=lang) + (f" · {name}" if name else ""))
+        else:
+            self.status.setText(tr("diag_conn_fail", lang=lang))
 
     # ---------- close / save geometry ----------
     def _on_close(self) -> None:
@@ -1144,8 +1148,10 @@ def launch() -> int:
     window.show()
     bridge.co_init()  # one-time COM apartment init on GUI thread
     if cfg.auto_connect:
-        bridge.connect()
+        result = bridge.connect()
         window._refresh_status()
+        if not result.get("ok") and result.get("error") == "excel_busy":
+            window.status.setText(tr("diag_excel_busy", lang=cfg.lang))
 
     def _cleanup() -> None:
         cfg = Config.get()

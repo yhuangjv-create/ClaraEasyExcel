@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.2.1-blue)
+![Version](https://img.shields.io/badge/version-1.2.2-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.2.1 — 5 core formulas)
+### Formula engine (v1.2.2 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -194,7 +194,24 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.2.1 (2026-11-27)
+### Latest — v1.2.2 (2026-11-27)
+
+- **Fixed: “says it wrote to A1, but nothing appears in my file”.**
+  Root cause: when Excel is opened from Explorer / the Start menu it usually
+  is **not** in the COM ROT, so the old code silently started a second, blank
+  Excel and wrote there (its ActiveCell is always A1).  Worse, leftovers of
+  those hidden instances stayed registered and hijacked every later write.
+- The bridge now **binds to the visible Excel window you are working in**:
+  it enumerates `XLMAIN` windows and asks MSAA for the native object behind
+  the sheet window (`OBJID_NATIVEOM`), preferring the foreground window and
+  windows with a real workbook file.
+- It **never starts a second Excel** while any Excel window exists, and a
+  ROT instance is trusted only if its window is one you can actually see.
+- The status bar now shows the bound workbook name
+  (e.g. `已连接 · 国开行转账明细.xlsx`), and a successful write reads
+  `✓ 已写入 — R2 · 国开行转账明细.xlsx`, so it is obvious **where** it went.
+
+### v1.2.1 (2026-11-27)
 
 - **Default colour**: the window now starts on the **deep purple** preset
   (`#5C2D91`) instead of the Windows accent colour.

@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![版本](https://img.shields.io/badge/version-1.2.1-blue)
+![版本](https://img.shields.io/badge/version-1.2.2-blue)
 [![许可证: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![平台](https://img.shields.io/badge/platform-windows-blue)
@@ -58,7 +58,7 @@ Excel 新手快速编写常用内部公式和（规划中）VBA 宏：
 
 ## 功能特性
 
-### 公式引擎（v1.2.1 — 5 个核心公式）
+### 公式引擎（v1.2.2 — 5 个核心公式）
 
 每个公式都自带完整的 **引导 → 生成 → 诊断** 流水线：
 
@@ -190,7 +190,21 @@ MIT — 详见 [LICENSE](./LICENSE)
 <a id="版本更迭"></a>
 ## 版本更迭
 
-### 最新 — v1.2.1（2026-11-27）
+### 最新 — v1.2.2（2026-11-27）
+
+- **修复「提示已写入 A1，但文件里什么都没有」。**
+  根因：从资源管理器 / 开始菜单打开的 Excel 通常**没有注册到 COM ROT**，
+  旧代码就会悄悄再启动一个空白 Excel 往里面写（它的活动单元格永远是 A1）；
+  这些隐藏实例还会残留并劫持后续所有写入。
+- 现在改为**绑定到你正在使用的那个可见 Excel 窗口**：枚举 `XLMAIN` 窗口，
+  通过 MSAA 取工作表窗口背后的原生对象（`OBJID_NATIVEOM`），优先当前前台
+  窗口和有真实文件路径的工作簿。
+- 只要有 Excel 窗口存在就**绝不再启动第二个 Excel**；ROT 实例只有在它的
+  窗口确实可见时才被采用。
+- 状态栏会显示已绑定的工作簿名（如 `已连接 · 国开行转账明细.xlsx`），
+  写入成功后显示 `✓ 已写入 — R2 · 国开行转账明细.xlsx`，写到哪里一目了然。
+
+### v1.2.1（2026-11-27）
 
 - **默认颜色**：窗口启动时使用**深紫色**预设（`#5C2D91`），不再默认跟随
   Windows 强调色。
