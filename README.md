@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.3.4-blue)
+![Version](https://img.shields.io/badge/version-1.3.5-blue)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Platform](https://img.shields.io/badge/platform-windows-blue)
@@ -59,7 +59,7 @@ stable for a decade — we rely on that.
 
 ## Features
 
-### Formula engine (v1.3.4 — 5 core formulas)
+### Formula engine (v1.3.5 — 5 core formulas)
 
 Every formula ships with a complete **guide → write → diagnose** pipeline:
 
@@ -195,7 +195,16 @@ MIT — see [LICENSE](./LICENSE)
 <a id="changelog"></a>
 ## Changelog
 
-### Latest — v1.3.4 (2026-11-27)
+### Latest — v1.3.5 (2026-11-27)
+
+- **Formula cards no longer carry a description paragraph.**  Each card is now
+  just the headline — formula name plus its one-line summary, e.g.
+  `VLOOKUP 条件查找` — followed by the example formula.  The freed height goes
+  to that headline row and to even spacing between rows, so all five formulas
+  fit on the home screen without a blank block underneath.
+- `tests/test_home_cards.py` now pins the card to exactly two text lines.
+
+### v1.3.4 (2026-11-27)
 
 - **The window is ~24 % narrower and ~30 % shorter: 320×420 instead of
   420×600**, with tighter padding throughout so far less of the spreadsheet is

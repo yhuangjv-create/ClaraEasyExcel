@@ -362,11 +362,28 @@ class HomeScreen(QWidget):
         item.setSizeHint(QSize(width, height))
 
     def _refit_cards(self) -> None:
+        rows: list[tuple[QListWidgetItem, QWidget]] = []
         for i in range(self.list_widget.count()):
             item = self.list_widget.item(i)
             card = self.list_widget.itemWidget(item)
             if card is not None:
-                self._fit_item(item, card)
+                rows.append((item, card))
+        if not rows:
+            return
+        width = max(120, self.list_widget.viewport().width())
+        heights: list[int] = []
+        for _, card in rows:
+            h = card.heightForWidth(width)
+            if h <= 0:
+                h = card.sizeHint().height()
+            heights.append(h)
+        # With the description paragraphs gone the cards are short, which left
+        # a big empty block under the list.  Share the leftover height between
+        # the rows (capped) so the headline row gets the breathing room.
+        spare = self.list_widget.viewport().height() - sum(heights) - 4 * len(rows)
+        grow = min(spare // len(rows), 30) if spare > 0 else 0
+        for (item, _), h in zip(rows, heights):
+            item.setSizeHint(QSize(width, h + grow))
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -401,32 +418,33 @@ def _build_card(f: FormulaBase, lang: str) -> QWidget:
     )
     v = QVBoxLayout(card)
     v.setContentsMargins(8, 5, 8, 5)
-    v.setSpacing(2)
+    v.setSpacing(1)
+    # Rows may be given extra height by _refit_cards — keep the two lines
+    # together and centre that block instead of stretching a single line.
+    v.addStretch(1)
 
+    # One headline row only: the formula name already carries the one-line
+    # summary (“VLOOKUP 条件查找”), so the paragraph under it was removed and
+    # the freed room goes to this row.
     title = QLabel(f.zh_name if lang == "zh" else f.en_name)
     title.setStyleSheet(
-        f"background: transparent; color: {_TEXT}; font-weight: bold; font-size: 12px;"
+        f"background: transparent; color: {_TEXT}; font-weight: bold; font-size: 13px;"
     )
     # Let the mouse fall through to the card, so the whole card gets :hover
     # instead of the individual line under the cursor.
     title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
     v.addWidget(title)
 
-    desc = QLabel(f.zh_desc if lang == "zh" else f.en_desc)
-    desc.setStyleSheet(f"background: transparent; color: {_TEXT_DIM}; font-size: 11px;")
-    desc.setWordWrap(True)
-    desc.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-    v.addWidget(desc)
-
     example_text = (f.zh_example if lang == "zh" else f.en_example) or f.zh_example
     example = QLabel(example_text)
     example.setStyleSheet(
-        f"background: transparent; color: {_TEXT}; "
-        f"font-family: Consolas; font-size: 11px; padding-top: 2px;"
+        f"background: transparent; color: {_TEXT_DIM}; "
+        f"font-family: Consolas; font-size: 11px;"
     )
     example.setWordWrap(True)
     example.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
     v.addWidget(example)
+    v.addStretch(1)
     return card
 
 

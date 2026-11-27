@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![版本](https://img.shields.io/badge/version-1.3.4-blue)
+![版本](https://img.shields.io/badge/version-1.3.5-blue)
 [![许可证: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![平台](https://img.shields.io/badge/platform-windows-blue)
@@ -58,7 +58,7 @@ Excel 新手快速编写常用内部公式和（规划中）VBA 宏：
 
 ## 功能特性
 
-### 公式引擎（v1.3.4 — 5 个核心公式）
+### 公式引擎（v1.3.5 — 5 个核心公式）
 
 每个公式都自带完整的 **引导 → 生成 → 诊断** 流水线：
 
@@ -191,7 +191,14 @@ MIT — 详见 [LICENSE](./LICENSE)
 <a id="版本更迭"></a>
 ## 版本更迭
 
-### 最新 — v1.3.4（2026-11-27）
+### 最新 — v1.3.5（2026-11-27）
+
+- **公式卡片不再显示下面的说明段落。** 每张卡片现在只有标题行——公式名 + 一句
+  简要说明（如 `VLOOKUP 条件查找`）——加上示例公式。省出来的高度给了这一行和行间
+  距，5 个公式正好铺满首页，不再出现下方大片空白。
+- `tests/test_home_cards.py` 现在锁定"卡片只有两行文字"。
+
+### v1.3.4（2026-11-27）
 
 - **窗口整体缩小：由 420×600 改为 320×420（宽约 -24%，高约 -30%）**，各处
   留白同步收紧，遮挡 Excel 的面积明显减少。

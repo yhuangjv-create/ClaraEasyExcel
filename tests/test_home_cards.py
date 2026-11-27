@@ -46,7 +46,9 @@ def test_card_hover_is_scoped_to_the_whole_card(app):
         assert "QWidget {\n" not in sheet and "QWidget {" not in sheet
 
         labels = card.findChildren(QLabel)
-        assert labels
+        # only two lines now: the headline (formula + one-line summary) and the
+        # example formula — the description paragraph was removed on request
+        assert len(labels) == 2
         for label in labels:
             # text lines must not paint their own background …
             assert "transparent" in label.styleSheet()
