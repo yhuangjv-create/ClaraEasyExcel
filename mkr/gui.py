@@ -9,12 +9,13 @@ import colorsys
 import sys
 from typing import Any
 
-from PySide6.QtCore import QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QGuiApplication
 from PySide6.QtWidgets import (
     QApplication,
     QColorDialog,
     QComboBox,
+    QGraphicsOpacityEffect,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -1110,6 +1111,19 @@ class SidecarWindow(QWidget):
         # status bar
         self.status = QLabel()
         self.status.setStyleSheet(Style.STATUS)
+        # Subtle "breathing" pulse so the live status reads as alive without a
+        # hard on/off blink.  QLabel has no opacity property, hence the effect.
+        self._status_fx = QGraphicsOpacityEffect(self.status)
+        self._status_fx.setOpacity(1.0)
+        self.status.setGraphicsEffect(self._status_fx)
+        self._status_anim = QPropertyAnimation(self._status_fx, b"opacity", self)
+        self._status_anim.setDuration(2600)
+        self._status_anim.setKeyValueAt(0.0, 1.0)
+        self._status_anim.setKeyValueAt(0.5, 0.45)
+        self._status_anim.setKeyValueAt(1.0, 1.0)
+        self._status_anim.setEasingCurve(QEasingCurve.Type.InOutSine)
+        self._status_anim.setLoopCount(-1)
+        self._status_anim.start()
         v.addWidget(self.status)
 
         outer.addWidget(self.frame)
